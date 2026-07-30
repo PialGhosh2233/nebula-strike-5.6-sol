@@ -4,11 +4,11 @@
   color-scheme: dark;
   font-family: "Rajdhani", "Segoe UI", sans-serif;
   font-synthesis: none;
-  --void: #030610;
-  --void-soft: #07101d;
-  --panel: rgba(5, 14, 28, 0.74);
-  --panel-strong: rgba(5, 12, 25, 0.92);
-  --line: rgba(113, 213, 255, 0.2);
+  --void: #07111f;
+  --void-soft: #0c1b2c;
+  --panel: rgba(10, 27, 44, 0.78);
+  --panel-strong: rgba(9, 23, 40, 0.94);
+  --line: rgba(132, 221, 255, 0.3);
   --line-bright: rgba(106, 228, 255, 0.6);
   --cyan: #5de6ff;
   --cyan-hot: #baf6ff;
@@ -18,7 +18,7 @@
   --orange: #ff9c57;
   --green: #54f0b0;
   --text: #ecfbff;
-  --muted: #7391a6;
+  --muted: #96b8c8;
   --shadow-cyan: 0 0 28px rgba(49, 201, 255, 0.2);
   --edge-pad: clamp(16px, 2.4vw, 40px);
   --safe-top: max(var(--edge-pad), env(safe-area-inset-top));
@@ -111,7 +111,7 @@ button {
   background:
     radial-gradient(circle at 72% 25%, rgba(80, 32, 146, 0.18), transparent 28%),
     radial-gradient(circle at 20% 78%, rgba(21, 122, 164, 0.16), transparent 36%),
-    #02050d;
+    #06101d;
 }
 
 #game-canvas {
@@ -130,7 +130,7 @@ button {
   z-index: 2;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: 0.2;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.011) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.007) 1px, transparent 1px);
@@ -142,7 +142,7 @@ button {
   position: absolute;
   inset: 0;
   content: "";
-  background: radial-gradient(circle, transparent 50%, rgba(0, 2, 8, 0.34) 100%);
+  background: radial-gradient(circle, transparent 58%, rgba(0, 4, 12, 0.16) 100%);
 }
 
 .hud {
@@ -164,7 +164,7 @@ button {
 
 .game-root[data-game-state="paused"] .hud,
 .game-root[data-game-state="game-over"] .hud {
-  filter: saturate(0.45) brightness(0.62) blur(1px);
+  filter: saturate(0.62) brightness(0.78) blur(1px);
 }
 
 .hud-panel {
@@ -300,7 +300,7 @@ button {
   gap: 10px;
   padding: 6px 12px;
   border: 1px solid rgba(74, 222, 255, 0.2);
-  color: #76a5b3;
+  color: #a4cbd6;
   background: rgba(2, 11, 22, 0.76);
   font-family: "Oxanium", monospace;
   font-size: 0.5rem;
@@ -345,7 +345,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #7197a5;
+  color: #9bbdca;
   font-family: "Oxanium", monospace;
   font-size: 0.48rem;
   letter-spacing: 0.1em;
@@ -522,7 +522,7 @@ button {
 }
 
 .panel-code {
-  color: #4c7183;
+  color: #82a7b7;
 }
 
 .vitals {
@@ -1225,8 +1225,8 @@ button {
   overflow-y: auto;
   scrollbar-width: none;
   background:
-    linear-gradient(90deg, rgba(2, 6, 14, 0.97) 0%, rgba(2, 6, 14, 0.89) 39%, rgba(2, 6, 14, 0.2) 71%, rgba(2, 6, 14, 0.45) 100%),
-    radial-gradient(circle at 70% 30%, rgba(61, 74, 190, 0.15), transparent 36%);
+    linear-gradient(90deg, rgba(5, 15, 28, 0.91) 0%, rgba(5, 15, 28, 0.78) 39%, rgba(5, 15, 28, 0.1) 71%, rgba(5, 15, 28, 0.27) 100%),
+    radial-gradient(circle at 70% 30%, rgba(83, 104, 220, 0.2), transparent 39%);
 }
 
 .menu-screen::-webkit-scrollbar {
@@ -1386,7 +1386,7 @@ button {
 .menu-intro {
   max-width: 485px;
   margin: 14px 0 28px;
-  color: #7893a2;
+  color: #a8c5d0;
   font-size: clamp(0.92rem, 1.3vw, 1.08rem);
   font-weight: 500;
   line-height: 1.55;
@@ -1472,7 +1472,7 @@ button {
 
 .button-copy small {
   overflow: hidden;
-  color: #638798;
+  color: #94b7c5;
   font-size: 0.5rem;
   letter-spacing: 0.12em;
   text-overflow: ellipsis;
@@ -1508,7 +1508,7 @@ button {
   align-items: center;
   gap: 9px;
   margin-bottom: 8px;
-  color: #5e8290;
+  color: #8fb2bf;
   font-family: "Oxanium", monospace;
   font-size: 0.48rem;
   letter-spacing: 0.17em;
@@ -1537,7 +1537,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  color: #638794;
+  color: #91b4c1;
   font-family: "Oxanium", monospace;
   font-size: 0.46rem;
   letter-spacing: 0.1em;
@@ -1601,7 +1601,7 @@ button {
 
 .online-launch-button small {
   overflow: hidden;
-  color: #6d819e;
+  color: #9caec7;
   font-size: 0.44rem;
   letter-spacing: 0.06em;
   text-overflow: ellipsis;
@@ -1617,7 +1617,7 @@ button {
 .multiplayer-status {
   min-height: 13px;
   margin: 5px 0 0;
-  color: #557481;
+  color: #8eacb8;
   font: 500 0.48rem "Oxanium", monospace;
   letter-spacing: 0.07em;
   text-align: left;
@@ -1637,7 +1637,7 @@ button {
   align-items: center;
   gap: 8px;
   margin-top: 13px;
-  color: #507886;
+  color: #8baebb;
   font-family: "Oxanium", monospace;
   font-size: 0.53rem;
   letter-spacing: 0.1em;
@@ -1715,7 +1715,7 @@ button {
 }
 
 .briefing-code {
-  color: #456779;
+  color: #7fa3b3;
 }
 
 .control-grid {
@@ -1761,7 +1761,7 @@ button {
 
 .control-item small {
   margin-top: 3px;
-  color: #4e7282;
+  color: #89adbc;
   font-size: 0.68rem;
   letter-spacing: 0.03em;
 }
@@ -1821,7 +1821,7 @@ button {
   margin: 17px 0 0;
   padding-left: 12px;
   border-left: 2px solid rgba(169, 118, 255, 0.7);
-  color: #5c7d8a;
+  color: #94b3bf;
   font-size: 0.7rem;
   line-height: 1.4;
 }
@@ -1834,7 +1834,7 @@ button {
   left: var(--safe-left);
   display: flex;
   justify-content: space-between;
-  color: rgba(107, 152, 166, 0.42);
+  color: rgba(145, 188, 201, 0.7);
   font-family: "Oxanium", monospace;
   font-size: 0.49rem;
   letter-spacing: 0.13em;
@@ -1848,8 +1848,8 @@ button {
   place-items: center;
   padding: var(--edge-pad);
   background:
-    radial-gradient(circle, rgba(9, 30, 45, 0.12), rgba(1, 4, 11, 0.88) 65%),
-    rgba(1, 4, 10, 0.66);
+    radial-gradient(circle, rgba(20, 54, 74, 0.16), rgba(4, 12, 24, 0.76) 70%),
+    rgba(3, 10, 21, 0.52);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }

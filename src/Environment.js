@@ -79,7 +79,7 @@ export class Environment {
     this._random = seededRandom(0x5a17c0de);
 
     this._previousBackground = this.scene.background;
-    this._backgroundColor = new THREE.Color(0x01030b);
+    this._backgroundColor = new THREE.Color(0x030916);
     if (this.scene.background == null) this.scene.background = this._backgroundColor;
 
     this._createLighting();
@@ -121,16 +121,16 @@ export class Environment {
   }
 
   _createLighting() {
-    const hemisphere = new THREE.HemisphereLight(0x4f7fbd, 0x160b22, 0.72);
+    const hemisphere = new THREE.HemisphereLight(0x75a9e6, 0x261936, 1.08);
     hemisphere.name = 'SpaceFillLight';
 
-    const key = new THREE.DirectionalLight(0xa7d8ff, 2.15);
+    const key = new THREE.DirectionalLight(0xc3e5ff, 2.7);
     key.name = 'BlueStarKeyLight';
     key.position.set(-160, 110, -190);
 
     const magentaRim = new THREE.PointLight(
       0xd452ff,
-      130,
+      155,
       this.arenaRadius * 1.8,
       1.75,
     );
@@ -143,7 +143,7 @@ export class Environment {
 
     const cyanRim = new THREE.PointLight(
       0x38d9ff,
-      105,
+      132,
       this.arenaRadius * 1.55,
       1.8,
     );
@@ -467,19 +467,19 @@ export class Environment {
     ];
     const materials = [
       this._trackMaterial(new THREE.MeshStandardMaterial({
-        color: 0x4d5260,
+        color: 0x656c7c,
         roughness: 0.93,
         metalness: 0.08,
         flatShading: true,
       })),
       this._trackMaterial(new THREE.MeshStandardMaterial({
-        color: 0x5c4c53,
+        color: 0x745f68,
         roughness: 0.96,
         metalness: 0.05,
         flatShading: true,
       })),
       this._trackMaterial(new THREE.MeshStandardMaterial({
-        color: 0x3f5255,
+        color: 0x566e72,
         roughness: 0.9,
         metalness: 0.12,
         flatShading: true,
@@ -572,9 +572,9 @@ export class Environment {
     const count = QUALITY_PRESETS.high.debris;
     const geometry = this._trackGeometry(new THREE.TetrahedronGeometry(1, 0));
     const material = this._trackMaterial(new THREE.MeshStandardMaterial({
-      color: 0x566574,
-      emissive: 0x09121b,
-      emissiveIntensity: 0.4,
+      color: 0x6f8192,
+      emissive: 0x10283c,
+      emissiveIntensity: 0.5,
       roughness: 0.7,
       metalness: 0.64,
       flatShading: true,

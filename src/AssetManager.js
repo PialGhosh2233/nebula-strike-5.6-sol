@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
 const PLAYER_PALETTE = {
-  hull: 0x376f98,
-  panel: 0x173650,
+  hull: 0x4b8bb5,
+  panel: 0x24506f,
   trim: 0x73efff,
   canopy: 0x65dfff,
   engine: 0x54f3ff,
@@ -10,29 +10,29 @@ const PLAYER_PALETTE = {
 
 const ENEMY_PALETTES = {
   scout: {
-    hull: 0x7d275d,
-    panel: 0x32152c,
+    hull: 0xa13b78,
+    panel: 0x55233f,
     trim: 0xff5ca8,
     canopy: 0xff7bbb,
     engine: 0xff3da4,
   },
   fighter: {
-    hull: 0x823332,
-    panel: 0x341817,
+    hull: 0xa94a46,
+    panel: 0x592927,
     trim: 0xff715e,
     canopy: 0xffa06c,
     engine: 0xff5a36,
   },
   heavy: {
-    hull: 0x70502d,
-    panel: 0x302416,
+    hull: 0x8e693d,
+    panel: 0x514029,
     trim: 0xffb34c,
     canopy: 0xffd26c,
     engine: 0xff7a2f,
   },
   boss: {
-    hull: 0x592967,
-    panel: 0x25142f,
+    hull: 0x793b89,
+    panel: 0x462254,
     trim: 0xe367ff,
     canopy: 0xff79ef,
     engine: 0xd946ff,

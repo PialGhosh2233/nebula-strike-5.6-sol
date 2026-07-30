@@ -56,7 +56,9 @@ export class Game {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    // Lift shadow detail without flattening emissive highlights. Space remains
+    // dark, but ships, asteroids, pickups, and navigation silhouettes stay clear.
+    this.renderer.toneMappingExposure = 1.34;
 
     this.state = GAME_STATE.MENU;
     this.previousPlayableState = GAME_STATE.PLAYING;
