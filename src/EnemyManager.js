@@ -27,6 +27,18 @@ export class EnemyManager {
     return enemy;
   }
 
+  spawnAt(type, position, difficulty = {}) {
+    let enemy = this.enemies.find(
+      (candidate) => !candidate.active && candidate.type === type,
+    );
+    if (!enemy) {
+      enemy = new Enemy(this.scene, this.assetManager, type);
+      this.enemies.push(enemy);
+    }
+    enemy.reset(position, difficulty);
+    return enemy;
+  }
+
   #findSpawnPosition(playerPosition, obstacles, out) {
     for (let attempt = 0; attempt < 40; attempt += 1) {
       randomPointOnShell(_candidate, 285, 520);

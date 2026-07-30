@@ -1,8 +1,8 @@
 # Nebula Strike
 
-Nebula Strike is a browser-based 3D arcade space-combat game built with Three.js, WebGL2, and Vite. It is a single-player survival run set in one procedural arena: fly a third-person fighter, manage shields and afterburner energy, acquire missile locks, and clear increasingly difficult enemy waves. Every fifth wave includes a three-phase dreadnought boss.
+Nebula Strike is a browser-based 3D arcade space-combat game built with Three.js, WebGL2, Vite, Node.js, and WebSockets. Fly solo through escalating enemy waves or join a room-based online free-for-all PvP arena for up to four pilots. Manage shields and afterburner energy, acquire missile locks, and fight for the highest rival kill score.
 
-The ships, arena, visual effects, and audio are generated at runtime. The project does not require a game server or downloaded model, texture, or sound assets.
+The ships, arena, visual effects, and audio are generated at runtime, so the project does not require downloaded model, texture, or sound assets. Online rooms use the included authoritative Node.js server for membership, player damage, ammunition, kill credit, score, and respawns.
 
 ## Requirements
 
@@ -22,13 +22,20 @@ Install the exact dependency versions recorded in `package-lock.json`:
 npm ci
 ```
 
-Start the Vite development server:
+Start both the Vite client and multiplayer server:
 
 ```bash
-npm run dev
+npm run dev:multi
 ```
 
-Open the local URL printed by Vite (normally `http://localhost:5173`).
+Open the Vite URL (normally `http://localhost:5173`). The development WebSocket server listens on `http://localhost:3001`.
+
+To run only one side during development:
+
+```bash
+npm run dev          # Vite client
+npm run dev:server   # WebSocket/server process
+```
 
 Create a production bundle:
 
@@ -36,27 +43,33 @@ Create a production bundle:
 npm run build
 ```
 
-Vite writes the static build to `dist/`. Test that build locally with:
+Vite writes the static client to `dist/`. Run the exact production server locally with:
 
 ```bash
-npm run preview
+npm start
 ```
 
-The preview server normally uses `http://localhost:4173`. The project uses Vite's default root entry (`index.html`) and does not require a custom Vite configuration. Its pinned packages are Three.js `0.180.0` and Vite `7.3.6`.
+Open `http://localhost:3001`. The Node process serves the built client, health endpoint, and same-origin `/ws` multiplayer endpoint.
 
 The available npm scripts are:
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Start the development server with hot reload |
+| `npm run dev:multi` | Start the Vite client and multiplayer server together |
+| `npm run dev` | Start only the Vite client with hot reload |
+| `npm run dev:server` | Start only the multiplayer server |
 | `npm run build` | Create the optimized production build |
 | `npm run preview` | Serve the production build locally |
+| `npm start` | Serve `dist/` and `/ws` as one production service |
+| `npm run test:multiplayer` | Run the automated two-client room/combat smoke test |
 
-There are currently no automated test or lint scripts.
+The pinned runtime packages are Three.js `0.180.0` and `ws` `8.21.1`; Vite is pinned at `7.3.6`.
 
 ## Controls
 
-Click **Launch mission** to start and grant the browser a user gesture for pointer lock and audio. If pointer lock is denied or later released, keyboard steering still works; use the **Mouse aim** button to request it again.
+Choose **Solo mission** for a local wave run. For PvP, enter a callsign and optionally an arena code, then choose **Join PvP arena**. Leaving the code blank finds an available room or creates one. Share the six-character code or the resulting `?room=CODE` URL with up to three rivals.
+
+Launching either mode grants the browser a user gesture for pointer lock and audio. If pointer lock is denied or later released, keyboard steering still works; use the **Mouse aim** button to request it again.
 
 | Input | Action |
 | --- | --- |
@@ -74,6 +87,10 @@ The always-available settings panel provides mute, master volume, graphics quali
 
 ## Features
 
+- Room-based 2–4 player online free-for-all PvP with quick matching, shareable arena codes, late joining, reconnect backoff, latency display, and remote pilot labels
+- A 20 Hz authoritative WebSocket server for health, shields, missile ammunition, validated PvP weapon hits, kill scoring, automatic respawns, and arena restart
+- Interpolated remote ships and synchronized enemies, fire events, explosions, announcements, player presence, and shared HUD telemetry
+- Solo mode preserved with its original local simulation and collision systems
 - Inertial third-person flight with forward and reverse thrust, speed limits, banking, a rechargeable afterburner, an arena warning zone, and a hard containment boundary
 - Regenerating shields over a separate hull-health pool; shield regeneration begins after avoiding damage for 3.2 seconds
 - Rapid pulse cannons plus six accelerating, homing missiles with splash damage
@@ -99,6 +116,8 @@ Shields absorb damage before the hull and recharge after the damage delay. The a
 
 The run ends when hull health reaches zero. Score comes from destroyed enemies and increases with wave difficulty. Restarting resets the mission, while the best score remains saved when browser storage is available.
 
+In online PvP, the server owns combat results. The client predicts its own flight for responsive controls and sends bounded movement updates; the server validates fire rate, origin, range, rival missile targets, ammunition, damage, kill credit, and score. Destroyed pilots respawn automatically after 3.5 seconds. Room state is held in memory and resets when the service restarts.
+
 ## Quality, audio, and saved settings
 
 Quality changes apply immediately. The renderer caps its pixel ratio, the environment changes its visible procedural-object counts, and particle density is scaled:
@@ -121,6 +140,7 @@ The game uses these `localStorage` entries:
 | `nebula-strike.quality` | `low`, `medium`, or `high` |
 | `nebula-strike.audio.volume` | Master volume from `0` to `1` |
 | `nebula-strike.audio.muted` | Mute state |
+| `nebula-strike.player-name` | Last online callsign |
 
 Storage access is guarded. Private browsing restrictions or disabled storage cause the game to use defaults for that session rather than fail.
 
@@ -128,9 +148,16 @@ Storage access is guarded. Private browsing restrictions or disabled storage cau
 
 ```text
 .
-├── index.html                    # Canvas, HUD, menus, settings, and error UI
+├── index.html                    # Canvas, HUD, solo/online lobby, settings, and errors
+├── render.yaml                   # Render Blueprint for the combined production service
 ├── package.json                  # Pinned runtime/dev dependencies and npm scripts
 ├── package-lock.json             # Reproducible npm dependency graph
+├── server/
+│   └── index.js                  # Static server and authoritative room simulation
+├── scripts/
+│   └── dev-multiplayer.js        # Starts client and server together in development
+├── tests/
+│   └── multiplayer-smoke.js      # Two-client room/combat integration test
 ├── public/
 │   └── favicon.svg               # Site icon
 └── src/
@@ -147,8 +174,10 @@ Storage access is guarded. Private browsing restrictions or disabled storage cau
     ├── Environment.js            # Procedural arena, lighting, obstacles, and quality visibility
     ├── InputManager.js           # Keyboard state, pointer lock, and per-frame mouse input
     ├── MissileManager.js         # Pooled homing-missile lifecycle
+    ├── NetworkManager.js         # Room protocol, WebSocket lifecycle, latency, and reconnects
     ├── Player.js                 # Fighter movement, resources, cooldowns, damage, and hard bounds
     ├── ProjectileManager.js      # Pooled player/enemy laser lifecycle
+    ├── RemotePlayerManager.js    # Interpolated squad ships, colors, labels, and cleanup
     ├── UIManager.js              # DOM state transitions, HUD updates, and settings callbacks
     ├── WaveManager.js            # Wave composition, scaling, bosses, and intermissions
     ├── styles.css                # Responsive presentation, HUD, menus, and effects
@@ -159,16 +188,18 @@ Storage access is guarded. Private browsing restrictions or disabled storage cau
 
 ## Architecture and frame order
 
-`main.js` explicitly requests a WebGL2 context and creates one `Game`. `Game` owns the scene, direct renderer, state transitions, and all specialized managers. `AssetManager` and `Environment` generate the visual content; gameplay systems exchange narrow references and callbacks, while `UIManager` is the DOM boundary.
+`main.js` explicitly requests a WebGL2 context and creates one `Game`. `Game` owns the scene, direct renderer, solo/online transitions, and specialized managers. `AssetManager` and `Environment` generate visual content; `UIManager` is the DOM boundary; `NetworkManager` exchanges plain protocol messages; and `RemotePlayerManager` interpolates squad ships.
+
+`server/index.js` serves the production client and upgrades `/ws` connections. Rooms are capped at four players. The server ticks at 20 Hz, bounds transform updates, rate-limits messages, validates PvP weapon cooldowns, hits and ranges, applies damage, awards kills, controls respawns, and broadcasts snapshots. Payloads are capped at 16 KiB, WebSocket compression is disabled, and browser origins default to the serving host.
 
 During active play, each clamped frame (`deltaTime` is capped at 0.05 seconds) runs in this order:
 
 1. Advance mission time and update player movement/resources.
 2. Select and progress the missile-lock target, then handle player weapons.
-3. Update enemy AI and enemy firing.
-4. Move laser projectiles and missiles.
-5. Resolve projectile, missile, and ship-versus-asteroid collisions.
-6. Advance wave/intermission state and spawn the player engine trail.
+3. In solo mode, update local AI, collisions, and waves. In online mode, send the predicted player transform and interpolate the latest server snapshot.
+4. Move visual laser projectiles and missiles.
+5. Resolve solo combat collisions or consume authoritative online events.
+6. Advance solo wave state or display the shared room state, then spawn the player engine trail.
 7. Update particles, the procedural environment, and the chase camera.
 8. Update procedural audio and the rate-limited HUD, then check for game over.
 9. Clear one-frame input and render directly through WebGL2.
@@ -196,18 +227,33 @@ Projectiles, missiles, and particles are preallocated through `ObjectPool` and e
 - Select and spawn the new key in `WaveManager.#spawnNextWave()`.
 - The existing `Enemy` class can drive stat-based variants. Add type-specific steering or firing branches in `Enemy` when a new class needs behavior beyond the shared chase/attack/retreat model.
 - `EnemyManager` already reuses inactive instances by their `type` key.
+- Mirror online balance and behavior changes in `server/index.js`, which is authoritative during PvP.
 
 ### Waves
 
 - Change boss cadence and intermission length with `GAME_CONFIG.bossEvery` and `GAME_CONFIG.waveDelay`.
 - Edit composition, count caps, escorts, and difficulty multipliers in `WaveManager.#spawnNextWave()`.
 - Use the existing `onWaveStart` and `onIntermission` callbacks for rewards, announcements, or other orchestration in `Game`.
+- Online wave composition and scaling live in `spawnNextWave()` and `spawnEnemy()` in `server/index.js`.
 
 ### Levels
 
 The current game has one deterministic arena and no campaign or level loader. `Environment` is the level boundary: its creation methods define sky, lighting, asteroids, debris, and containment.
 
 To add levels, parameterize `Environment` with a level definition or introduce an environment factory, then have `Game` swap/reset it at a chosen wave boundary. Preserve the obstacle interface used by spawning and collision code—each active obstacle exposes `mesh`, `position`, and `radius`—and define per-level quality counts if layouts have different density requirements.
+
+## Deploy to Render
+
+The included `render.yaml` deploys the full game as one Render Web Service:
+
+1. Push this repository to GitHub.
+2. In Render, choose **New → Blueprint** and select the repository.
+3. Review the detected `nebula-strike` web service and deploy it.
+4. Open the assigned `onrender.com` URL and use **Join PvP arena**.
+
+The Blueprint runs `npm ci && npm run build`, starts `npm start`, and checks `/health`. The same public origin serves the game and secure `wss://…/ws` connection, so no CORS or separate frontend URL is required.
+
+Render Free web services sleep after inactivity and lose in-memory rooms on sleep, restart, or redeploy. Active incoming WebSocket messages keep a live match active, but the first player after an idle period can encounter a cold start. Use an always-on instance and shared persistence before treating the service as production infrastructure.
 
 ## Credits
 

@@ -12,9 +12,12 @@ import { WaveManager } from './WaveManager.js';
 import { CollisionSystem } from './CollisionSystem.js';
 import { AudioManager } from './AudioManager.js';
 import { UIManager } from './UIManager.js';
+import { NetworkManager } from './NetworkManager.js';
+import { RemotePlayerManager } from './RemotePlayerManager.js';
 import {
   GAME_CONFIG,
   GAME_STATE,
+  ENEMY_TYPES,
   PLAYER_CONFIG,
   QUALITY_PRESETS,
 } from './config.js';
@@ -28,6 +31,8 @@ const _toEnemy = new THREE.Vector3();
 const _screenPosition = new THREE.Vector3();
 const _damageDirection = new THREE.Vector3();
 const _engineLocal = new THREE.Vector3(0, -0.08, 2.8);
+const _networkPosition = new THREE.Vector3();
+const _networkDirection = new THREE.Vector3();
 
 export class Game {
   constructor(canvas, context) {
@@ -79,6 +84,11 @@ export class Game {
     this.hudTimer = 0;
     this.lastVisualFrame = 0;
     this.disposed = false;
+    this.mode = 'solo';
+    this.networkSnapshot = null;
+    this.networkEnemies = new Map();
+    this.networkStarting = false;
+    this.snapNetworkPlayer = false;
 
     this.assetManager = new AssetManager();
     this.environment = new Environment(this.scene, {
@@ -89,7 +99,9 @@ export class Game {
     this.audio = new AudioManager();
     this.ui = new UIManager({
       onStart: () => this.start(),
+      onOnlineStart: (details) => this.startOnline(details),
       onRestart: () => this.restart(),
+      onExit: () => this.exitToMenu(),
       onResume: () => this.resume(),
       onMute: (muted) => this.audio.setMuted(muted),
       onVolume: (volume) => this.audio.setVolume(volume),
@@ -122,6 +134,16 @@ export class Game {
       this.effects,
     );
     this.enemyManager = new EnemyManager(this.scene, this.assetManager);
+    this.remotePlayerManager = new RemotePlayerManager(
+      this.scene,
+      this.assetManager,
+    );
+    this.network = new NetworkManager({
+      onWelcome: (message) => this.#onNetworkWelcome(message),
+      onSnapshot: (snapshot) => this.#onNetworkSnapshot(snapshot),
+      onEvent: (event) => this.#onNetworkEvent(event),
+      onStatus: (status) => this.ui.setMultiplayerStatus(status),
+    });
     this.waveManager = new WaveManager(
       this.enemyManager,
       this.player,
@@ -170,6 +192,13 @@ export class Game {
     this.ui.setMuted(this.audio.muted);
     this.ui.setVolume(this.audio.getVolume());
     this.ui.setQuality(this.quality);
+    const invitedRoom = new URLSearchParams(window.location.search)
+      .get('room') ?? '';
+    this.ui.setLobbyDefaults({
+      name: safeGetStorage('nebula-strike.player-name', ''),
+      roomCode: invitedRoom,
+    });
+    this.ui.setMultiplayerStatus({ state: 'offline' });
     this.ui.showMenu();
     this.#updateHUD(true);
     this.renderer.setAnimationLoop(this._animate);
@@ -177,13 +206,45 @@ export class Game {
 
   async start() {
     if (this.state !== GAME_STATE.MENU) return;
+    this.mode = 'solo';
+    this.network.disconnect(true);
+    this.remotePlayerManager.reset();
+    this.networkEnemies.clear();
     const audioReady = this.audio.resume();
     this.restart();
     this.input.requestPointerLock();
     await audioReady;
   }
 
+  async startOnline({ name, roomCode = '' } = {}) {
+    if (this.state !== GAME_STATE.MENU || this.networkStarting) return;
+    this.networkStarting = true;
+    void this.audio.resume();
+    const playerName = String(name || '').trim() || `Pilot-${Math.floor(100 + Math.random() * 900)}`;
+    safeSetStorage('nebula-strike.player-name', playerName);
+    this.ui.setMultiplayerStatus({ state: 'connecting' });
+    try {
+      await this.network.connect({ name: playerName, roomCode });
+    } catch (error) {
+      this.ui.setMultiplayerStatus({
+        state: 'error',
+        message: error.message || 'Could not connect to multiplayer.',
+      });
+    } finally {
+      this.networkStarting = false;
+    }
+  }
+
   restart() {
+    if (this.mode === 'online' && this.network.connected) {
+      this.network.requestRestart();
+      this.#resetOnlineVisuals();
+      this.state = GAME_STATE.COUNTDOWN;
+      this.countdownTimer = GAME_CONFIG.countdownSeconds;
+      this.ui.showCountdown(Math.ceil(this.countdownTimer));
+      this.input.requestPointerLock();
+      return;
+    }
     this.enemyManager.reset();
     this.projectileManager.reset();
     this.missileManager.reset();
@@ -213,6 +274,34 @@ export class Game {
     this.ui.showCountdown(Math.ceil(this.countdownTimer));
     this.#updateHUD(true);
     this.input.requestPointerLock();
+    this.timer.reset();
+  }
+
+  exitToMenu() {
+    const previousRoomCode =
+      this.mode === 'online' ? this.network.roomCode : '';
+    this.network.disconnect(true);
+    this.enemyManager.reset();
+    this.networkEnemies.clear();
+    this.remotePlayerManager.reset();
+    this.projectileManager.reset();
+    this.missileManager.reset();
+    this.effects.reset();
+    this.waveManager.reset();
+    this.audio.reset();
+    this.input.clear();
+    this.input.releasePointerLock();
+    this.mode = 'solo';
+    this.networkSnapshot = null;
+    this.state = GAME_STATE.MENU;
+    this.ui.setLobbyDefaults({ roomCode: previousRoomCode });
+    this.ui.setMultiplayerStatus({
+      state: 'offline',
+      message: previousRoomCode
+        ? `Left arena ${previousRoomCode} · use this code to rejoin`
+        : 'Multiplayer relay ready',
+    });
+    this.ui.showMenu();
     this.timer.reset();
   }
 
@@ -332,9 +421,17 @@ export class Game {
   }
 
   #updateCountdown(deltaTime, realDeltaTime) {
-    this.countdownTimer -= realDeltaTime;
+    if (this.mode === 'online' && this.networkSnapshot) {
+      this.countdownTimer = Math.max(0, this.networkSnapshot.countdown ?? 0);
+    } else {
+      this.countdownTimer -= realDeltaTime;
+    }
     this.environment.update(deltaTime, this.player.group.position);
     this.effects.update(deltaTime);
+    if (this.mode === 'online') {
+      this.#updateNetworkWorld(deltaTime);
+      this.remotePlayerManager.update(deltaTime);
+    }
     this.cameraController.update(deltaTime, this.player);
     const value = Math.max(0, Math.ceil(this.countdownTimer));
     if (value !== this.lastCountdownValue) {
@@ -344,7 +441,7 @@ export class Game {
     if (this.countdownTimer <= 0) {
       this.state = GAME_STATE.PLAYING;
       this.ui.showPlaying();
-      this.waveManager.start();
+      if (this.mode === 'solo') this.waveManager.start();
     }
     this.#updateAudio(realDeltaTime);
     this.#updateHUD(false, realDeltaTime);
@@ -355,11 +452,17 @@ export class Game {
     this.player.update(deltaTime, this.input);
     this.#updateTargetLock(deltaTime);
     this.#handleWeapons();
-    this.enemyManager.update(deltaTime, this.enemyContext);
     this.projectileManager.update(deltaTime);
     this.missileManager.update(deltaTime);
-    this.collisionSystem.update(this.player, this.environment.obstacles);
-    this.waveManager.update(realDeltaTime);
+    if (this.mode === 'online') {
+      this.network.sendPlayerState(this.player);
+      this.#updateNetworkWorld(deltaTime);
+      this.remotePlayerManager.update(deltaTime);
+    } else {
+      this.enemyManager.update(deltaTime, this.enemyContext);
+      this.collisionSystem.update(this.player, this.environment.obstacles);
+      this.waveManager.update(realDeltaTime);
+    }
     this.#spawnEngineTrail(deltaTime);
     this.effects.update(deltaTime);
     this.environment.update(deltaTime, this.player.group.position);
@@ -367,7 +470,7 @@ export class Game {
     this.#updateAudio(realDeltaTime);
     this.#updateHUD(false, realDeltaTime);
 
-    if (!this.player.alive) this.#gameOver();
+    if (this.mode === 'solo' && !this.player.alive) this.#gameOver();
   }
 
   #handleWeapons() {
@@ -383,6 +486,9 @@ export class Game {
       );
       this.effects.spawnTrail(_muzzlePosition, 'cyan', 0.24);
       this.player.markFired();
+      if (this.mode === 'online') {
+        this.network.sendFire(_muzzlePosition, _forward);
+      }
       this.audio.playLaser(false);
       this.cameraController.addShake(0.022);
     }
@@ -401,6 +507,9 @@ export class Game {
           this.player.velocity,
         );
         this.player.markMissileLaunched();
+        if (this.mode === 'online') {
+          this.network.sendMissile(this.lockTarget.networkId);
+        }
         this.audio.playMissile();
         this.cameraController.addShake(0.08);
       } else if (this.player.missiles > 0) {
@@ -414,16 +523,22 @@ export class Game {
     let bestTarget = null;
     let bestDot = GAME_CONFIG.lockConeDot;
 
-    for (const enemy of this.enemyManager.enemies) {
-      if (!enemy.active || !enemy.alive) continue;
-      _toEnemy.copy(enemy.group.position).sub(this.player.group.position);
+    const targets = this.mode === 'online'
+      ? this.remotePlayerManager.players.values()
+      : this.enemyManager.enemies;
+    for (const target of targets) {
+      if (
+        !target.alive ||
+        (this.mode !== 'online' && !target.active)
+      ) continue;
+      _toEnemy.copy(target.group.position).sub(this.player.group.position);
       const distance = _toEnemy.length();
       if (distance > GAME_CONFIG.lockRange || distance < 0.001) continue;
       _toEnemy.multiplyScalar(1 / distance);
       const dot = _forward.dot(_toEnemy);
       if (dot > bestDot) {
         bestDot = dot;
-        bestTarget = enemy;
+        bestTarget = target;
       }
     }
 
@@ -441,7 +556,9 @@ export class Game {
       this.lockProgress = 0;
       this.locked = false;
     }
-    this.enemyManager.setTarget(this.lockTarget);
+    this.enemyManager.setTarget(
+      this.mode === 'solo' ? this.lockTarget : null,
+    );
   }
 
   #spawnEngineTrail(deltaTime) {
@@ -489,6 +606,298 @@ export class Game {
       }
     } else {
       this.warningTimer = 0;
+    }
+  }
+
+  #resetOnlineVisuals() {
+    this.enemyManager.reset();
+    this.networkEnemies.clear();
+    this.remotePlayerManager.reset();
+    this.projectileManager.reset();
+    this.missileManager.reset();
+    this.effects.reset();
+    this.waveManager.reset();
+    this.environment.reset();
+    this.player.reset();
+    this.cameraController.reset(this.player);
+    this.audio.reset();
+    this.audio.startMusic();
+    this.input.clear();
+    this.score = 0;
+    this.kills = 0;
+    this.elapsedTime = 0;
+    this.countdownTimer = GAME_CONFIG.countdownSeconds;
+    this.lastCountdownValue = null;
+    this.lockTarget = null;
+    this.lockProgress = 0;
+    this.locked = false;
+    this.muzzleSide = -1;
+    this.engineParticleTimer = 0;
+    this.warningTimer = 0;
+    this.audioUpdateAccumulator = 0;
+    this.runStartingHighScore = this.highScore;
+  }
+
+  #onNetworkWelcome(message) {
+    const firstJoin =
+      this.mode !== 'online' ||
+      this.state === GAME_STATE.MENU ||
+      this.state === GAME_STATE.GAME_OVER;
+    this.mode = 'online';
+    if (firstJoin) this.#resetOnlineVisuals();
+    this.networkSnapshot = message.snapshot;
+    this.#onNetworkSnapshot(message.snapshot, true);
+
+    const roomUrl = new URL(window.location.href);
+    roomUrl.searchParams.set('room', message.roomCode);
+    window.history.replaceState({}, '', roomUrl);
+
+    if ((message.snapshot?.countdown ?? 0) > 0) {
+      this.state = GAME_STATE.COUNTDOWN;
+      this.countdownTimer = message.snapshot.countdown;
+      this.ui.showCountdown(Math.ceil(this.countdownTimer));
+    } else if (message.snapshot?.state === 'gameover') {
+      this.#gameOver(message.snapshot);
+    } else {
+      this.state = GAME_STATE.PLAYING;
+      this.ui.showPlaying();
+    }
+    this.input.requestPointerLock();
+    this.timer.reset();
+  }
+
+  #onNetworkSnapshot(snapshot, snap = false) {
+    if (!snapshot || this.mode !== 'online') return;
+    this.networkSnapshot = snapshot;
+    this.elapsedTime = Math.max(0, Number(snapshot.elapsed) || 0);
+
+    const localState = snapshot.players?.find(
+      (candidate) => candidate.id === this.network.playerId,
+    );
+    if (localState) {
+      const respawned = !this.player.alive && localState.alive !== false;
+      this.score = Math.max(0, Number(localState.score) || 0);
+      this.kills = Math.max(0, Number(localState.kills) || 0);
+      if (snap || this.snapNetworkPlayer || respawned) {
+        if (respawned) this.player.reset();
+        this.player.group.position.fromArray(localState.position);
+        this.player.group.quaternion.fromArray(localState.quaternion);
+        this.player.velocity.fromArray(localState.velocity);
+        this.cameraController.reset(this.player);
+        this.snapNetworkPlayer = false;
+      } else {
+        _networkPosition.fromArray(localState.position);
+        if (this.player.group.position.distanceToSquared(_networkPosition) > 35 ** 2) {
+          this.player.group.position.lerp(_networkPosition, 0.35);
+        }
+      }
+      this.player.health = Math.max(0, Number(localState.health) || 0);
+      this.player.shield = Math.max(0, Number(localState.shield) || 0);
+      this.player.missiles = Math.max(0, Number(localState.missiles) || 0);
+      this.player.alive = localState.alive !== false;
+      this.player.group.visible = this.player.alive;
+    }
+
+    this.remotePlayerManager.sync(
+      snapshot.players,
+      this.network.playerId,
+    );
+
+    if (
+      snapshot.state === 'playing' &&
+      this.state === GAME_STATE.COUNTDOWN &&
+      (snapshot.countdown ?? 0) <= 0
+    ) {
+      this.state = GAME_STATE.PLAYING;
+      this.ui.showPlaying();
+    } else if (
+      snapshot.state === 'countdown' &&
+      this.state !== GAME_STATE.COUNTDOWN
+    ) {
+      this.state = GAME_STATE.COUNTDOWN;
+      this.countdownTimer = snapshot.countdown;
+      this.ui.showCountdown(Math.ceil(this.countdownTimer));
+    }
+  }
+
+  #updateNetworkWorld(deltaTime) {
+    const snapshot = this.networkSnapshot;
+    if (!snapshot) return;
+    const activeIds = new Set();
+    for (const state of snapshot.enemies ?? []) {
+      activeIds.add(state.id);
+      let enemy = this.networkEnemies.get(state.id);
+      const created = !enemy;
+      if (!enemy) {
+        const baseHealth = ENEMY_TYPES[state.type]?.health ?? 1;
+        _networkPosition.fromArray(state.position);
+        enemy = this.enemyManager.spawnAt(
+          state.type,
+          _networkPosition,
+          { health: Math.max(0.01, state.maxHealth / baseHealth) },
+        );
+        enemy.networkId = state.id;
+        this.networkEnemies.set(state.id, enemy);
+      }
+      enemy.applyNetworkState(
+        state,
+        this.camera,
+        deltaTime,
+        created,
+      );
+    }
+    for (const [id, enemy] of this.networkEnemies) {
+      if (activeIds.has(id)) continue;
+      if (this.lockTarget === enemy) {
+        this.lockTarget = null;
+        this.lockProgress = 0;
+        this.locked = false;
+      }
+      this.enemyManager.deactivate(enemy);
+      this.networkEnemies.delete(id);
+    }
+  }
+
+  #onNetworkEvent(event) {
+    if (!event || this.mode !== 'online') return;
+    if (event.event === 'playerJoined') {
+      this.ui.showWaveAnnouncement(
+        `${event.player?.name ?? 'Pilot'} joined`,
+        `${event.playerCount ?? 1}/4 rivals online`,
+      );
+    } else if (event.event === 'playerLeft') {
+      this.remotePlayerManager.remove(event.playerId);
+      this.ui.showWaveAnnouncement(
+        `${event.name ?? 'Pilot'} disconnected`,
+        `${event.playerCount ?? 1}/4 rivals online`,
+      );
+    } else if (event.event === 'wave') {
+      this.ui.showWaveAnnouncement(
+        event.boss
+          ? `Boss wave // ${String(event.wave).padStart(2, '0')}`
+          : `Wave ${String(event.wave).padStart(2, '0')}`,
+        event.boss
+          ? 'Dreadnought signature detected'
+          : `${event.enemies} shared hostile signatures`,
+      );
+      if (event.boss) this.cameraController.addShake(0.28);
+    } else if (event.event === 'intermission') {
+      this.ui.showWaveAnnouncement(
+        'Sector clear',
+        `Squad regrouping · next wave in ${event.seconds} seconds`,
+      );
+    } else if (event.event === 'laser') {
+      _networkPosition.fromArray(event.position);
+      _networkDirection.fromArray(event.direction).normalize();
+      this.projectileManager.spawnPlayer(
+        _networkPosition,
+        _networkDirection,
+        null,
+        null,
+      );
+    } else if (event.event === 'enemyFire') {
+      _networkPosition.fromArray(event.position);
+      _networkDirection.fromArray(event.direction).normalize();
+      this.projectileManager.spawnEnemy(
+        _networkPosition,
+        _networkDirection,
+        event.damage,
+        this.networkEnemies.get(event.enemyId) ?? null,
+      );
+      this.audio.playLaser(true);
+    } else if (event.event === 'missile') {
+      const target = this.remotePlayerManager.players.get(event.targetId);
+      if (target) {
+        _networkPosition.fromArray(event.position);
+        _networkDirection
+          .copy(target.group.position)
+          .sub(_networkPosition)
+          .normalize();
+        this.missileManager.spawn(
+          _networkPosition,
+          _networkDirection,
+          target,
+        );
+      }
+    } else if (event.event === 'missileImpact') {
+      _networkPosition.fromArray(event.position);
+      this.effects.spawnExplosion(_networkPosition, 'orange', 1.55);
+      this.audio.playExplosion(1.15);
+      this.cameraController.addShake(0.24);
+    } else if (event.event === 'enemyHit') {
+      _networkPosition.fromArray(event.position);
+      this.effects.spawnImpact(_networkPosition, 'cyan', 1);
+      if (event.playerId === this.network.playerId) {
+        this.ui.showHitMarker();
+        this.audio.playHit();
+      }
+    } else if (event.event === 'enemyDestroyed') {
+      const enemy = this.networkEnemies.get(event.enemyId);
+      _networkPosition.fromArray(
+        event.position ?? enemy?.group.position.toArray() ?? [0, 0, 0],
+      );
+      this.effects.spawnExplosion(
+        _networkPosition,
+        event.enemyType === 'boss' ? 'purple' : 'orange',
+        event.enemyType === 'boss' ? 3.2 : 1.2,
+      );
+      this.audio.playExplosion(event.enemyType === 'boss' ? 2 : 1);
+      if (enemy) {
+        this.enemyManager.deactivate(enemy);
+        this.networkEnemies.delete(event.enemyId);
+      }
+      if (event.playerId === this.network.playerId) {
+        _screenPosition.copy(_networkPosition).project(this.camera);
+        this.ui.showScorePopup(
+          event.reward,
+          (_screenPosition.x * 0.5 + 0.5) * window.innerWidth,
+          (-_screenPosition.y * 0.5 + 0.5) * window.innerHeight,
+        );
+      }
+    } else if (event.event === 'playerHit') {
+      if (event.attackerId === this.network.playerId) {
+        this.ui.showHitMarker();
+        this.audio.playHit();
+      }
+      if (event.playerId !== this.network.playerId) return;
+      _networkPosition.fromArray(event.source ?? [0, 0, 0]);
+      this.#onPlayerDamaged(event.amount, _networkPosition, {
+        applied: true,
+        shieldDamage: event.shieldDamage,
+        hullDamage: event.hullDamage,
+        dead: event.dead,
+      });
+    } else if (event.event === 'playerDestroyed') {
+      _networkPosition.fromArray(event.position ?? [0, 0, 0]);
+      this.effects.spawnExplosion(_networkPosition, 'orange', 2.4);
+      this.audio.playExplosion(1.7);
+      const localKill = event.killerId === this.network.playerId;
+      const localDeath = event.playerId === this.network.playerId;
+      this.ui.showWaveAnnouncement(
+        localKill
+          ? `You destroyed ${event.playerName}`
+          : localDeath
+            ? `${event.killerName} destroyed you`
+            : `${event.playerName} destroyed`,
+        localDeath
+          ? `Respawning in ${event.respawnSeconds ?? 4} seconds`
+          : `${event.killerName} scored a kill`,
+      );
+    } else if (event.event === 'playerRespawned') {
+      if (event.playerId === this.network.playerId) {
+        this.snapNetworkPlayer = true;
+        this.ui.showWaveAnnouncement('Fighter restored', 'Re-entering PvP combat');
+      }
+    } else if (event.event === 'roomReset') {
+      this.#resetOnlineVisuals();
+      this.snapNetworkPlayer = true;
+      this.state = GAME_STATE.COUNTDOWN;
+      this.ui.showCountdown(GAME_CONFIG.countdownSeconds);
+    } else if (event.event === 'gameOver') {
+      this.score = event.score;
+      this.kills = event.kills;
+      this.elapsedTime = event.elapsed;
+      this.#gameOver(event);
     }
   }
 
@@ -586,7 +995,9 @@ export class Game {
         ? 'RETURN TO COMBAT ZONE'
         : this.player.boosting
           ? 'AFTERBURNER ENGAGED'
-          : this.waveManager.intermission
+          : this.mode === 'online'
+            ? `PVP ARENA ${this.network.roomCode || ''} · ${this.kills} KILLS`
+            : this.waveManager.intermission
             ? 'SECTOR SECURE'
             : 'Combat systems nominal';
 
@@ -600,8 +1011,16 @@ export class Game {
       missiles: this.player.missiles,
       score: this.score,
       highScore: this.highScore,
-      wave: Math.max(1, this.waveManager.wave),
-      enemies: this.enemyManager.activeCount,
+      wave: Math.max(
+        1,
+        this.mode === 'online'
+          ? this.networkSnapshot?.wave ?? 1
+          : this.waveManager.wave,
+      ),
+      enemies:
+        this.mode === 'online'
+          ? Math.max(0, (this.networkSnapshot?.players?.length ?? 1) - 1)
+          : this.enemyManager.activeCount,
       kills: this.kills,
       time: this.elapsedTime,
       lockStatus,
@@ -617,7 +1036,7 @@ export class Game {
     });
   }
 
-  #gameOver() {
+  #gameOver(onlineStats = null) {
     if (this.state === GAME_STATE.GAME_OVER) return;
     this.state = GAME_STATE.GAME_OVER;
     this.input.clear();
@@ -636,11 +1055,15 @@ export class Game {
       safeSetStorage('nebula-strike.high-score', this.highScore);
     }
     this.ui.showGameOver({
-      score: this.score,
+      score: onlineStats?.score ?? this.score,
       highScore: this.highScore,
-      wave: this.waveManager.wave,
-      kills: this.kills,
-      time: this.elapsedTime,
+      wave:
+        onlineStats?.wave ??
+        (this.mode === 'online'
+          ? this.networkSnapshot?.wave ?? 1
+          : this.waveManager.wave),
+      kills: onlineStats?.kills ?? this.kills,
+      time: onlineStats?.elapsed ?? this.elapsedTime,
       newHighScore,
     });
   }
@@ -678,6 +1101,8 @@ export class Game {
     this.ui.dispose();
     this.audio.dispose();
     this.enemyManager.dispose();
+    this.remotePlayerManager.dispose();
+    this.network.dispose();
     this.projectileManager.dispose();
     this.missileManager.dispose();
     this.effects.dispose();

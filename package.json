@@ -6,11 +6,16 @@
   "description": "A procedural 3D arcade space-combat game built with Three.js and WebGL2.",
   "scripts": {
     "dev": "vite",
+    "dev:server": "node server/index.js",
+    "dev:multi": "node scripts/dev-multiplayer.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server/index.js",
+    "test:multiplayer": "node tests/multiplayer-smoke.js"
   },
   "dependencies": {
-    "three": "0.180.0"
+    "three": "0.180.0",
+    "ws": "8.21.1"
   },
   "devDependencies": {
     "vite": "7.3.6"

@@ -44,7 +44,9 @@ export class UIManager {
   constructor(callbacks = {}) {
     this.callbacks = {
       onStart: callbacks.onStart ?? NOOP,
+      onOnlineStart: callbacks.onOnlineStart ?? NOOP,
       onRestart: callbacks.onRestart ?? NOOP,
+      onExit: callbacks.onExit ?? NOOP,
       onResume: callbacks.onResume ?? NOOP,
       onMute: callbacks.onMute ?? NOOP,
       onVolume: callbacks.onVolume ?? NOOP,
@@ -101,8 +103,14 @@ export class UIManager {
       webglErrorMessage: byId("webgl-error-message"),
 
       startButton: byId("start-button"),
+      onlineStartButton: byId("online-start-button"),
+      playerNameInput: byId("player-name-input"),
+      roomCodeInput: byId("room-code-input"),
+      multiplayerStatus: byId("multiplayer-status"),
       restartButton: byId("restart-button"),
+      gameOverExitButton: byId("game-over-exit-button"),
       pauseRestartButton: byId("pause-restart-button"),
+      pauseExitButton: byId("pause-exit-button"),
       resumeButton: byId("pause-resume-button"),
 
       scoreValue: byId("score-value"),
@@ -113,6 +121,10 @@ export class UIManager {
       timerValue: byId("timer-value"),
       missileCountValue: byId("missile-count-value"),
       flightStatus: byId("flight-status"),
+      networkStatus: byId("network-status"),
+      networkRoomValue: byId("network-room-value"),
+      networkPlayerValue: byId("network-player-value"),
+      networkLatencyValue: byId("network-latency-value"),
 
       healthFill: byId("health-fill"),
       healthValue: byId("health-value"),
@@ -169,8 +181,28 @@ export class UIManager {
 
   #bindControls() {
     this.#listen(this.elements.startButton, "click", () => this.callbacks.onStart());
+    this.#listen(this.elements.onlineStartButton, "click", () => {
+      this.callbacks.onOnlineStart({
+        name: this.elements.playerNameInput?.value?.trim() ?? "",
+        roomCode: this.elements.roomCodeInput?.value?.trim() ?? "",
+      });
+    });
+    this.#listen(this.elements.roomCodeInput, "input", (event) => {
+      event.currentTarget.value = event.currentTarget.value
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 8);
+    });
+    this.#listen(this.elements.roomCodeInput, "keydown", (event) => {
+      if (event.key === "Enter") this.elements.onlineStartButton?.click();
+    });
+    this.#listen(this.elements.playerNameInput, "keydown", (event) => {
+      if (event.key === "Enter") this.elements.onlineStartButton?.click();
+    });
     this.#listen(this.elements.restartButton, "click", () => this.callbacks.onRestart());
     this.#listen(this.elements.pauseRestartButton, "click", () => this.callbacks.onRestart());
+    this.#listen(this.elements.gameOverExitButton, "click", () => this.callbacks.onExit());
+    this.#listen(this.elements.pauseExitButton, "click", () => this.callbacks.onExit());
     this.#listen(this.elements.resumeButton, "click", () => this.callbacks.onResume());
 
     this.#listen(this.elements.muteButton, "click", () => {
@@ -267,6 +299,64 @@ export class UIManager {
     this.#setScreen(this.elements.hud, false);
     this.#setScreen(this.elements.bossBar, false);
     this.#focus(this.elements.startButton);
+  }
+
+  setLobbyDefaults({ name = "", roomCode = "" } = {}) {
+    if (this.elements.playerNameInput && !this.elements.playerNameInput.value) {
+      this.elements.playerNameInput.value = String(name).slice(0, 16);
+    }
+    if (this.elements.roomCodeInput) {
+      this.elements.roomCodeInput.value = String(roomCode)
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 8);
+    }
+  }
+
+  setMultiplayerStatus({
+    state = "offline",
+    message = "",
+    roomCode = "",
+    playerCount = 1,
+    latency = 0,
+  } = {}) {
+    const statusMessages = {
+      offline: "Multiplayer relay ready",
+      connecting: "Contacting multiplayer relay…",
+      reconnecting: "Signal interrupted · reconnecting…",
+      online: roomCode
+        ? `PvP arena ${roomCode} online · share this code`
+        : "PvP arena connected",
+      error: message || "Could not connect to multiplayer",
+    };
+    if (this.elements.multiplayerStatus) {
+      this.elements.multiplayerStatus.textContent =
+        message || statusMessages[state] || statusMessages.offline;
+      this.elements.multiplayerStatus.dataset.state = state;
+    }
+    if (this.elements.onlineStartButton) {
+      this.elements.onlineStartButton.disabled =
+        state === "connecting" || state === "reconnecting";
+    }
+    if (this.elements.networkStatus) {
+      const online = state === "online" || state === "reconnecting";
+      this.elements.networkStatus.hidden = !online;
+      this.elements.networkStatus.dataset.state = state;
+    }
+    if (this.elements.networkRoomValue) {
+      this.elements.networkRoomValue.textContent = `ROOM ${roomCode || "—"}`;
+    }
+    if (this.elements.networkPlayerValue) {
+      this.elements.networkPlayerValue.textContent =
+        `${Math.max(1, Number(playerCount) || 1)}/4 PILOTS`;
+    }
+    if (this.elements.networkLatencyValue) {
+      this.elements.networkLatencyValue.textContent =
+        latency > 0 ? `${Math.round(latency)} MS` : "— MS";
+    }
+    if (roomCode && this.elements.roomCodeInput) {
+      this.elements.roomCodeInput.value = roomCode;
+    }
   }
 
   showCountdown(value) {

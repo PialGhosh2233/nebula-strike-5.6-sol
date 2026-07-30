@@ -70,6 +70,13 @@
           </div>
         </header>
 
+        <div id="network-status" class="network-status" aria-live="polite" hidden>
+          <span class="network-status__dot"></span>
+          <span id="network-room-value">ROOM —</span>
+          <span id="network-player-value">1/4 PILOTS</span>
+          <span id="network-latency-value">— MS</span>
+        </div>
+
         <section class="vitals hud-panel" aria-label="Ship integrity">
           <div class="panel-heading">
             <span>Fighter integrity</span>
@@ -250,11 +257,49 @@
             <button id="start-button" class="action-button action-button--primary" type="button">
               <span class="button-index">01</span>
               <span class="button-copy">
-                <small>Flight clearance granted</small>
-                <strong>Launch mission</strong>
+                <small>Local simulation</small>
+                <strong>Solo mission</strong>
               </span>
               <span class="button-arrow" aria-hidden="true">→</span>
             </button>
+
+            <div class="multiplayer-launch">
+              <div class="launch-divider"><span>Online PvP arena</span></div>
+              <div class="multiplayer-fields">
+                <label>
+                  <span>Pilot callsign</span>
+                  <input
+                    id="player-name-input"
+                    type="text"
+                    maxlength="16"
+                    autocomplete="nickname"
+                    placeholder="Vanguard"
+                  />
+                </label>
+                <label>
+                  <span>Squad code · share with friends</span>
+                  <input
+                    id="room-code-input"
+                    type="text"
+                    maxlength="8"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="e.g. NOVA7"
+                  />
+                </label>
+              </div>
+              <button id="online-start-button" class="online-launch-button" type="button">
+                <span class="system-pulse"></span>
+                <span>
+                  <small>2–4 rivals · use the same code · blank code finds an arena</small>
+                  <strong>Join PvP arena</strong>
+                </span>
+                <span aria-hidden="true">↗</span>
+              </button>
+              <p id="multiplayer-status" class="multiplayer-status" aria-live="polite">
+                Multiplayer relay ready
+              </p>
+            </div>
 
             <div class="system-ready" aria-label="System status ready">
               <span class="system-pulse"></span>
@@ -339,6 +384,13 @@
             >
               Restart mission
             </button>
+            <button
+              id="pause-exit-button"
+              class="action-button action-button--ghost action-button--compact"
+              type="button"
+            >
+              Exit to lobby
+            </button>
           </div>
           <span class="escape-hint"><kbd>Esc</kbd> to resume</span>
         </div>
@@ -371,6 +423,13 @@
             <span class="button-index">↻</span>
             <span class="button-copy"><small>Re-enter the fight</small><strong>Launch again</strong></span>
             <span class="button-arrow" aria-hidden="true">→</span>
+          </button>
+          <button
+            id="game-over-exit-button"
+            class="action-button action-button--ghost action-button--compact"
+            type="button"
+          >
+            Exit to lobby
           </button>
         </div>
       </section>

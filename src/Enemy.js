@@ -435,6 +435,40 @@ export class Enemy {
     this.targetRing.visible = this.targeted;
   }
 
+  applyNetworkState(state, camera, deltaTime, snap = false) {
+    if (!state) return;
+    this.networkId = state.id;
+    this.active = true;
+    this.alive = state.health > 0;
+    this.group.visible = this.alive;
+    this.healthBar.visible = this.alive && !this.isBoss;
+    this.maxHealth = Math.max(1, Number(state.maxHealth) || this.maxHealth);
+    this.health = clamp(Number(state.health) || 0, 0, this.maxHealth);
+    _desiredDirection.fromArray(state.position ?? [0, 0, 0]);
+    if (snap) {
+      this.group.position.copy(_desiredDirection);
+    } else {
+      this.group.position.lerp(
+        _desiredDirection,
+        1 - Math.exp(-12 * deltaTime),
+      );
+    }
+    this.velocity.fromArray(state.velocity ?? [0, 0, 0]);
+    if (this.velocity.lengthSq() > 0.01) {
+      _forward.copy(this.velocity).normalize();
+      _targetQuaternion.setFromUnitVectors(FORWARD, _forward);
+      if (snap) this.group.quaternion.copy(_targetQuaternion);
+      else {
+        this.group.quaternion.slerp(
+          _targetQuaternion,
+          1 - Math.exp(-this.config.turnRate * 2.4 * deltaTime),
+        );
+      }
+    }
+    this.#updateHealthIndicator();
+    this.#updateVisuals(deltaTime, camera);
+  }
+
   damage(amount) {
     if (!this.alive) return { applied: false, dead: true };
     this.health = Math.max(0, this.health - amount);
