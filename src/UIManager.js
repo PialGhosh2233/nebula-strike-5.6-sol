@@ -58,6 +58,7 @@ export class UIManager {
     this.listeners = [];
     this.timers = new Map();
     this.popupTimers = new Map();
+    this.radarBlips = new Map();
     this.muted = false;
     this.volume = asFiniteNumber(this.elements.volumeSlider?.value, 0.7);
     this.quality = this.elements.qualitySelect?.value ?? "high";
@@ -125,6 +126,9 @@ export class UIManager {
       networkRoomValue: byId("network-room-value"),
       networkPlayerValue: byId("network-player-value"),
       networkLatencyValue: byId("network-latency-value"),
+      pvpRadar: byId("pvp-radar"),
+      radarRangeValue: byId("radar-range-value"),
+      radarBlips: byId("radar-blips"),
 
       healthFill: byId("health-fill"),
       healthValue: byId("health-value"),
@@ -298,6 +302,7 @@ export class UIManager {
     this.#setScreen(this.elements.webglError, false);
     this.#setScreen(this.elements.hud, false);
     this.#setScreen(this.elements.bossBar, false);
+    this.updateRadar([], false);
     this.#focus(this.elements.startButton);
   }
 
@@ -633,6 +638,56 @@ export class UIManager {
       if (bossName !== undefined && this.elements.bossName) {
         this.elements.bossName.textContent = String(bossName);
       }
+    }
+  }
+
+  updateRadar(targets = [], visible = true) {
+    const radar = this.elements.pvpRadar;
+    const container = this.elements.radarBlips;
+    if (!radar || !container) return;
+    radar.hidden = !visible;
+    if (!visible) {
+      for (const blip of this.radarBlips.values()) blip.remove();
+      this.radarBlips.clear();
+      return;
+    }
+
+    const range = 600;
+    const activeIds = new Set();
+    let nearestEnemy = Infinity;
+    for (const target of targets) {
+      if (!target?.id) continue;
+      activeIds.add(target.id);
+      let blip = this.radarBlips.get(target.id);
+      if (!blip) {
+        blip = document.createElement("span");
+        blip.className = "radar-blip";
+        container.append(blip);
+        this.radarBlips.set(target.id, blip);
+      }
+      const x = asFiniteNumber(target.x);
+      const z = asFiniteNumber(target.z);
+      const normalizedX = x / range;
+      const normalizedZ = z / range;
+      const magnitude = Math.hypot(normalizedX, normalizedZ);
+      const scale = magnitude > 0.92 ? 0.92 / magnitude : 1;
+      blip.dataset.kind = target.kind === "pickup" ? "pickup" : "enemy";
+      blip.style.left = `${50 + normalizedX * scale * 50}%`;
+      blip.style.top = `${50 + normalizedZ * scale * 50}%`;
+      const distance = Math.max(0, Math.round(asFiniteNumber(target.distance)));
+      blip.title = `${target.name || "Contact"} · ${distance} m`;
+      blip.setAttribute("aria-label", blip.title);
+      if (target.kind !== "pickup") nearestEnemy = Math.min(nearestEnemy, distance);
+    }
+    for (const [id, blip] of this.radarBlips) {
+      if (activeIds.has(id)) continue;
+      blip.remove();
+      this.radarBlips.delete(id);
+    }
+    if (this.elements.radarRangeValue) {
+      this.elements.radarRangeValue.textContent = Number.isFinite(nearestEnemy)
+        ? `NEAREST ${nearestEnemy} M`
+        : "NO RIVALS";
     }
   }
 

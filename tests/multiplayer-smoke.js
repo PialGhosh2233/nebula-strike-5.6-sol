@@ -160,10 +160,62 @@ await alpha.waitFor(
     );
     return alphaPlayer?.kills === 1 &&
       alphaPlayer?.score === 1000 &&
+      alphaPlayer?.missiles === 6 &&
       bravoPlayer?.alive === true &&
       bravoPlayer?.deaths === 1;
   },
   8000,
+);
+
+const pickupSnapshot = await alpha.waitFor(
+  (message) =>
+    message.type === 'snapshot' &&
+    message.pickups?.some((pickup) => pickup.type === 'missile'),
+  8000,
+);
+const supply = pickupSnapshot.pickups.find((pickup) => pickup.type === 'missile');
+const alphaBeforePickup = pickupSnapshot.players.find(
+  (player) => player.id === alphaWelcome.playerId,
+);
+alpha.socket.send(JSON.stringify({
+  type: 'missile',
+  targetId: bravoWelcome.playerId,
+}));
+await alpha.waitFor(
+  (message) => {
+    if (
+      message.type !== 'snapshot' ||
+      message.serverTime <= pickupSnapshot.serverTime
+    ) return false;
+    const player = message.players?.find(
+      (candidate) => candidate.id === alphaWelcome.playerId,
+    );
+    return player?.missiles === 5;
+  },
+);
+
+const supplyDistance = distance(alphaBeforePickup.position, supply.position);
+const movementSteps = Math.max(1, Math.ceil(supplyDistance / 24));
+for (let step = 1; step <= movementSteps; step += 1) {
+  const progress = step / movementSteps;
+  alpha.socket.send(JSON.stringify({
+    type: 'state',
+    position: alphaBeforePickup.position.map(
+      (value, index) => value + (supply.position[index] - value) * progress,
+    ),
+    quaternion: alphaBeforePickup.quaternion,
+    velocity: [0, 0, 0],
+    boosting: false,
+  }));
+  await delay(110);
+}
+await alpha.waitFor(
+  (message) =>
+    message.type === 'event' &&
+    message.event === 'pickupCollected' &&
+    message.pickupId === supply.id &&
+    message.playerId === alphaWelcome.playerId &&
+    message.missiles === 6,
 );
 
 const sentAt = Date.now();
@@ -205,7 +257,10 @@ console.log(JSON.stringify({
     'authoritative-pvp-laser-hit',
     'authoritative-missile-ammo',
     'pvp-kill-credit',
+    'kill-missile-refill',
     'automatic-respawn',
+    'random-missile-drop',
+    'missile-drop-collection',
     'ping-pong',
     'disconnect-event',
     'room-restart',

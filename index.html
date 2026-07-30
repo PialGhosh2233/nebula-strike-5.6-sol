@@ -77,6 +77,25 @@
           <span id="network-latency-value">— MS</span>
         </div>
 
+        <section id="pvp-radar" class="pvp-radar hud-panel" aria-label="PvP tactical radar" hidden>
+          <div class="radar-heading">
+            <span>Tactical radar</span>
+            <output id="radar-range-value">600 M</output>
+          </div>
+          <div class="radar-scope">
+            <i class="radar-ring radar-ring--outer"></i>
+            <i class="radar-ring radar-ring--inner"></i>
+            <i class="radar-axis radar-axis--horizontal"></i>
+            <i class="radar-axis radar-axis--vertical"></i>
+            <span class="radar-self" aria-hidden="true"></span>
+            <div id="radar-blips" class="radar-blips"></div>
+          </div>
+          <div class="radar-legend">
+            <span><i class="radar-key radar-key--enemy"></i> Rival</span>
+            <span><i class="radar-key radar-key--pickup"></i> Missiles</span>
+          </div>
+        </section>
+
         <section class="vitals hud-panel" aria-label="Ship integrity">
           <div class="panel-heading">
             <span>Fighter integrity</span>

@@ -17,6 +17,12 @@ const TICK_MS = 1000 / TICK_RATE;
 const MAX_PLAYERS = 4;
 const PVP_RESPAWN_MS = 3500;
 const PVP_KILL_SCORE = 1000;
+const PICKUP_MAX_COUNT = 4;
+const PICKUP_RADIUS = 6;
+const PICKUP_LIFETIME_MS = 45_000;
+const PICKUP_FIRST_SPAWN_MS = 1800;
+const PICKUP_MIN_SPAWN_MS = 7000;
+const PICKUP_MAX_SPAWN_MS = 12_000;
 const MAX_MESSAGE_BYTES = 16 * 1024;
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PROJECT_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -36,6 +42,7 @@ const CONTENT_TYPES = Object.freeze({
 
 const rooms = new Map();
 let enemySequence = 0;
+let pickupSequence = 0;
 
 function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -188,17 +195,20 @@ function createPlayer(socket, name, index) {
 }
 
 function createRoom(code = randomRoomCode()) {
+  const now = Date.now();
   const room = {
     code,
     players: new Map(),
     enemies: new Map(),
     missiles: [],
+    pickups: new Map(),
     wave: 0,
     score: 0,
     kills: 0,
     elapsed: 0,
     state: 'countdown',
-    countdownUntil: Date.now() + GAME_CONFIG.countdownSeconds * 1000,
+    countdownUntil: now + GAME_CONFIG.countdownSeconds * 1000,
+    nextPickupAt: now + GAME_CONFIG.countdownSeconds * 1000 + PICKUP_FIRST_SPAWN_MS,
     intermissionUntil: 0,
     lastTickAt: Date.now(),
     emptySince: 0,
@@ -245,12 +255,14 @@ function resetPlayer(player, index) {
 function resetRoom(room) {
   room.enemies.clear();
   room.missiles.length = 0;
+  room.pickups.clear();
   room.wave = 1;
   room.score = 0;
   room.kills = 0;
   room.elapsed = 0;
   room.state = 'countdown';
   room.countdownUntil = Date.now() + GAME_CONFIG.countdownSeconds * 1000;
+  room.nextPickupAt = room.countdownUntil + PICKUP_FIRST_SPAWN_MS;
   room.intermissionUntil = 0;
   let index = 0;
   for (const player of room.players.values()) {
@@ -258,6 +270,73 @@ function resetRoom(room) {
     index += 1;
   }
   broadcast(room, { type: 'event', event: 'roomReset' });
+}
+
+function scheduleNextPickup(room, now) {
+  room.nextPickupAt = now + PICKUP_MIN_SPAWN_MS +
+    Math.random() * (PICKUP_MAX_SPAWN_MS - PICKUP_MIN_SPAWN_MS);
+}
+
+function spawnMissilePickup(room, now) {
+  const direction = randomDirection();
+  const radius = 120 + Math.random() * 400;
+  const pickup = {
+    id: `missile-drop-${++pickupSequence}`,
+    type: 'missile',
+    position: direction.map((component) => component * radius),
+    expiresAt: now + PICKUP_LIFETIME_MS,
+  };
+  room.pickups.set(pickup.id, pickup);
+  scheduleNextPickup(room, now);
+  broadcast(room, {
+    type: 'event',
+    event: 'pickupSpawned',
+    pickup: {
+      id: pickup.id,
+      type: pickup.type,
+      position: pickup.position,
+    },
+  });
+}
+
+function updatePickups(room, now) {
+  if (
+    room.state === 'playing' &&
+    room.pickups.size < PICKUP_MAX_COUNT &&
+    now >= room.nextPickupAt
+  ) {
+    spawnMissilePickup(room, now);
+  }
+
+  for (const [id, pickup] of room.pickups) {
+    if (now >= pickup.expiresAt) {
+      room.pickups.delete(id);
+      continue;
+    }
+    for (const player of room.players.values()) {
+      if (
+        !player.alive ||
+        player.missiles >= PLAYER_CONFIG.missileAmmo ||
+        distance(player.position, pickup.position) >
+          PICKUP_RADIUS + PLAYER_CONFIG.radius
+      ) {
+        continue;
+      }
+      player.missiles = PLAYER_CONFIG.missileAmmo;
+      room.pickups.delete(id);
+      broadcast(room, {
+        type: 'event',
+        event: 'pickupCollected',
+        pickupId: id,
+        pickupType: pickup.type,
+        playerId: player.id,
+        playerName: player.name,
+        position: pickup.position,
+        missiles: player.missiles,
+      });
+      break;
+    }
+  }
 }
 
 function respawnPlayer(room, player) {
@@ -357,6 +436,7 @@ function damagePlayer(room, player, amount, source, attacker = null) {
     if (attacker && attacker.id !== player.id) {
       attacker.kills += 1;
       attacker.score += PVP_KILL_SCORE;
+      attacker.missiles = PLAYER_CONFIG.missileAmmo;
       room.kills += 1;
       room.score += PVP_KILL_SCORE;
     }
@@ -369,6 +449,7 @@ function damagePlayer(room, player, amount, source, attacker = null) {
       killerName: attacker?.name ?? 'Unknown',
       position: player.position,
       respawnSeconds: PVP_RESPAWN_MS / 1000,
+      missilesRefilled: Boolean(attacker && attacker.id !== player.id),
     });
   }
   broadcast(room, {
@@ -560,6 +641,12 @@ function createSnapshot(room, now = Date.now()) {
     countdown: Math.max(0, (room.countdownUntil - now) / 1000),
     players: [...room.players.values()].map(serializePlayer),
     enemies: [...room.enemies.values()].map(serializeEnemy),
+    pickups: [...room.pickups.values()].map((pickup) => ({
+      id: pickup.id,
+      type: pickup.type,
+      position: pickup.position,
+      expiresAt: pickup.expiresAt,
+    })),
     wave: room.wave,
     score: room.score,
     kills: room.kills,
@@ -599,6 +686,7 @@ function updateRoom(room, now) {
   if (room.state === 'playing') {
     room.elapsed += deltaTime;
     updatePendingMissiles(room, now);
+    updatePickups(room, now);
   }
 
   broadcast(room, createSnapshot(room, now));

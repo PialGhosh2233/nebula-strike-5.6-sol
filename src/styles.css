@@ -327,6 +327,159 @@ button {
   box-shadow: 0 0 8px #ffad4d;
 }
 
+.pvp-radar {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--safe-top) + 92px);
+  right: var(--safe-right);
+  width: 190px;
+  padding: 11px 13px 10px;
+}
+
+.pvp-radar[hidden] {
+  display: none;
+}
+
+.radar-heading,
+.radar-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #7197a5;
+  font-family: "Oxanium", monospace;
+  font-size: 0.48rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.radar-heading output {
+  color: #9ddde9;
+  font-size: 0.46rem;
+}
+
+.radar-scope {
+  position: relative;
+  width: 154px;
+  height: 154px;
+  margin: 8px auto 7px;
+  overflow: hidden;
+  border: 1px solid rgba(81, 211, 240, 0.28);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(56, 198, 231, 0.11), transparent 68%),
+    rgba(0, 8, 18, 0.72);
+  box-shadow: inset 0 0 28px rgba(46, 193, 228, 0.08);
+}
+
+.radar-ring,
+.radar-axis,
+.radar-self,
+.radar-blip {
+  position: absolute;
+  display: block;
+}
+
+.radar-ring {
+  border: 1px solid rgba(83, 207, 235, 0.15);
+  border-radius: 50%;
+}
+
+.radar-ring--outer {
+  inset: 17%;
+}
+
+.radar-ring--inner {
+  inset: 34%;
+}
+
+.radar-axis--horizontal {
+  top: 50%;
+  right: 5%;
+  left: 5%;
+  height: 1px;
+  background: rgba(80, 205, 234, 0.1);
+}
+
+.radar-axis--vertical {
+  top: 5%;
+  bottom: 5%;
+  left: 50%;
+  width: 1px;
+  background: rgba(80, 205, 234, 0.1);
+}
+
+.radar-self {
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 9px;
+  background: var(--cyan-hot);
+  clip-path: polygon(50% 0, 100% 100%, 50% 72%, 0 100%);
+  filter: drop-shadow(0 0 5px var(--cyan));
+  transform: translate(-50%, -50%);
+}
+
+.radar-blips {
+  position: absolute;
+  inset: 0;
+}
+
+.radar-blip {
+  z-index: 4;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.radar-blip[data-kind="enemy"] {
+  background: #ff526f;
+  box-shadow: 0 0 7px #ff3157;
+  animation: radar-hostile-pulse 850ms ease-in-out infinite alternate;
+}
+
+.radar-blip[data-kind="pickup"] {
+  border-radius: 0;
+  background: #ffad4d;
+  box-shadow: 0 0 7px #ff9b2f;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.radar-legend {
+  justify-content: center;
+  gap: 14px;
+  font-size: 0.43rem;
+}
+
+.radar-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.radar-key {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.radar-key--enemy {
+  background: #ff526f;
+  box-shadow: 0 0 5px #ff3157;
+}
+
+.radar-key--pickup {
+  border-radius: 0;
+  background: #ffad4d;
+  transform: rotate(45deg);
+}
+
+@keyframes radar-hostile-pulse {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
 .telemetry-panel {
   display: grid;
   min-height: 75px;
@@ -2342,6 +2495,17 @@ button {
     width: min(380px, 74vw);
   }
 
+  .pvp-radar {
+    top: calc(var(--safe-top) + 88px);
+    width: 158px;
+    padding: 9px 10px 8px;
+  }
+
+  .radar-scope {
+    width: 126px;
+    height: 126px;
+  }
+
   .score-panel .score-secondary,
   .telemetry-item:nth-child(3) {
     display: none;
@@ -2420,6 +2584,24 @@ button {
     max-width: calc(100vw - 24px);
     gap: 7px;
     white-space: nowrap;
+  }
+
+  .pvp-radar {
+    top: calc(var(--safe-top) + 87px);
+    right: 12px;
+    width: 132px;
+    padding: 7px 8px;
+  }
+
+  .radar-scope {
+    width: 104px;
+    height: 104px;
+    margin: 6px auto;
+  }
+
+  .radar-heading output,
+  .radar-legend {
+    display: none;
   }
 
   .score-panel {

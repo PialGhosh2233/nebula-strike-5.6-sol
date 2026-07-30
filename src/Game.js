@@ -14,6 +14,7 @@ import { AudioManager } from './AudioManager.js';
 import { UIManager } from './UIManager.js';
 import { NetworkManager } from './NetworkManager.js';
 import { RemotePlayerManager } from './RemotePlayerManager.js';
+import { PickupManager } from './PickupManager.js';
 import {
   GAME_CONFIG,
   GAME_STATE,
@@ -33,6 +34,8 @@ const _damageDirection = new THREE.Vector3();
 const _engineLocal = new THREE.Vector3(0, -0.08, 2.8);
 const _networkPosition = new THREE.Vector3();
 const _networkDirection = new THREE.Vector3();
+const _radarOffset = new THREE.Vector3();
+const _radarQuaternion = new THREE.Quaternion();
 
 export class Game {
   constructor(canvas, context) {
@@ -138,6 +141,7 @@ export class Game {
       this.scene,
       this.assetManager,
     );
+    this.pickupManager = new PickupManager(this.scene);
     this.network = new NetworkManager({
       onWelcome: (message) => this.#onNetworkWelcome(message),
       onSnapshot: (snapshot) => this.#onNetworkSnapshot(snapshot),
@@ -209,6 +213,7 @@ export class Game {
     this.mode = 'solo';
     this.network.disconnect(true);
     this.remotePlayerManager.reset();
+    this.pickupManager.reset();
     this.networkEnemies.clear();
     const audioReady = this.audio.resume();
     this.restart();
@@ -284,6 +289,7 @@ export class Game {
     this.enemyManager.reset();
     this.networkEnemies.clear();
     this.remotePlayerManager.reset();
+    this.pickupManager.reset();
     this.projectileManager.reset();
     this.missileManager.reset();
     this.effects.reset();
@@ -431,6 +437,7 @@ export class Game {
     if (this.mode === 'online') {
       this.#updateNetworkWorld(deltaTime);
       this.remotePlayerManager.update(deltaTime);
+      this.pickupManager.update(deltaTime, this.elapsedTime);
     }
     this.cameraController.update(deltaTime, this.player);
     const value = Math.max(0, Math.ceil(this.countdownTimer));
@@ -458,6 +465,7 @@ export class Game {
       this.network.sendPlayerState(this.player);
       this.#updateNetworkWorld(deltaTime);
       this.remotePlayerManager.update(deltaTime);
+      this.pickupManager.update(deltaTime, this.elapsedTime);
     } else {
       this.enemyManager.update(deltaTime, this.enemyContext);
       this.collisionSystem.update(this.player, this.environment.obstacles);
@@ -613,6 +621,7 @@ export class Game {
     this.enemyManager.reset();
     this.networkEnemies.clear();
     this.remotePlayerManager.reset();
+    this.pickupManager.reset();
     this.projectileManager.reset();
     this.missileManager.reset();
     this.effects.reset();
@@ -702,6 +711,7 @@ export class Game {
       snapshot.players,
       this.network.playerId,
     );
+    this.pickupManager.sync(snapshot.pickups);
 
     if (
       snapshot.state === 'playing' &&
@@ -881,8 +891,20 @@ export class Game {
             : `${event.playerName} destroyed`,
         localDeath
           ? `Respawning in ${event.respawnSeconds ?? 4} seconds`
-          : `${event.killerName} scored a kill`,
+          : localKill && event.missilesRefilled
+            ? 'Kill confirmed · missiles refilled'
+            : `${event.killerName} scored a kill`,
       );
+    } else if (event.event === 'pickupCollected') {
+      this.pickupManager.remove(event.pickupId);
+      _networkPosition.fromArray(event.position ?? [0, 0, 0]);
+      this.effects.spawnImpact(_networkPosition, 'orange', 1.8);
+      if (event.playerId === this.network.playerId) {
+        this.ui.showWaveAnnouncement(
+          'Missile supply acquired',
+          'Seeker missiles fully refilled',
+        );
+      }
     } else if (event.event === 'playerRespawned') {
       if (event.playerId === this.network.playerId) {
         this.snapNetworkPlayer = true;
@@ -1001,6 +1023,41 @@ export class Game {
             ? 'SECTOR SECURE'
             : 'Combat systems nominal';
 
+    const radarTargets = [];
+    if (this.mode === 'online') {
+      _radarQuaternion.copy(this.player.group.quaternion).invert();
+      for (const remote of this.remotePlayerManager.players.values()) {
+        if (!remote.alive) continue;
+        _radarOffset
+          .copy(remote.group.position)
+          .sub(this.player.group.position)
+          .applyQuaternion(_radarQuaternion);
+        radarTargets.push({
+          id: remote.id,
+          name: remote.name,
+          kind: 'enemy',
+          x: _radarOffset.x,
+          z: _radarOffset.z,
+          distance: _radarOffset.length(),
+        });
+      }
+      for (const pickup of this.pickupManager.pickups.values()) {
+        _radarOffset
+          .copy(pickup.group.position)
+          .sub(this.player.group.position)
+          .applyQuaternion(_radarQuaternion);
+        radarTargets.push({
+          id: pickup.id,
+          name: 'Missile supply',
+          kind: 'pickup',
+          x: _radarOffset.x,
+          z: _radarOffset.z,
+          distance: _radarOffset.length(),
+        });
+      }
+    }
+    this.ui.updateRadar(radarTargets, this.mode === 'online');
+
     this.ui.updateHUD({
       health: this.player.health,
       maxHealth: PLAYER_CONFIG.maxHealth,
@@ -1102,6 +1159,7 @@ export class Game {
     this.audio.dispose();
     this.enemyManager.dispose();
     this.remotePlayerManager.dispose();
+    this.pickupManager.dispose();
     this.network.dispose();
     this.projectileManager.dispose();
     this.missileManager.dispose();

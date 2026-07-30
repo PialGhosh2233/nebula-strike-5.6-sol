@@ -89,6 +89,8 @@ The always-available settings panel provides mute, master volume, graphics quali
 
 - Room-based 2–4 player online free-for-all PvP with quick matching, shareable arena codes, late joining, reconnect backoff, latency display, and remote pilot labels
 - A 20 Hz authoritative WebSocket server for health, shields, missile ammunition, validated PvP weapon hits, kill scoring, automatic respawns, and arena restart
+- Full missile refills after rival kills, plus server-spawned missile supply pickups distributed around the arena
+- A ship-relative tactical radar showing live rival and missile-supply direction and distance
 - Interpolated remote ships and synchronized enemies, fire events, explosions, announcements, player presence, and shared HUD telemetry
 - Solo mode preserved with its original local simulation and collision systems
 - Inertial third-person flight with forward and reverse thrust, speed limits, banking, a rechargeable afterburner, an arena warning zone, and a hard containment boundary
@@ -116,7 +118,7 @@ Shields absorb damage before the hull and recharge after the damage delay. The a
 
 The run ends when hull health reaches zero. Score comes from destroyed enemies and increases with wave difficulty. Restarting resets the mission, while the best score remains saved when browser storage is available.
 
-In online PvP, the server owns combat results. The client predicts its own flight for responsive controls and sends bounded movement updates; the server validates fire rate, origin, range, rival missile targets, ammunition, damage, kill credit, and score. Destroyed pilots respawn automatically after 3.5 seconds. Room state is held in memory and resets when the service restarts.
+In online PvP, the server owns combat results. The client predicts its own flight for responsive controls and sends bounded movement updates; the server validates fire rate, origin, range, rival missile targets, ammunition, damage, kill credit, pickups, and score. A kill fully restores the killer's missiles. Random missile supplies remain in the arena until collected by a pilot who needs ammunition or until they expire. Destroyed pilots respawn automatically after 3.5 seconds. Room state is held in memory and resets when the service restarts.
 
 ## Quality, audio, and saved settings
 
