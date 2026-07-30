@@ -41,9 +41,12 @@ export const PLAYER_CONFIG = Object.freeze({
 export const WEAPON_CONFIG = Object.freeze({
   playerLaser: {
     speed: 430,
-    damage: 18,
+    damage: 26,
     radius: 0.42,
     lifetime: 2.2,
+    aimAssistDot: 0.975,
+    aimAssistStrength: 0.72,
+    maxLeadTime: 0.7,
   },
   enemyLaser: {
     speed: 255,

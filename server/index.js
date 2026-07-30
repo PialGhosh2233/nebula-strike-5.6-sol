@@ -17,6 +17,7 @@ const TICK_MS = 1000 / TICK_RATE;
 const MAX_PLAYERS = 4;
 const PVP_RESPAWN_MS = 3500;
 const PVP_KILL_SCORE = 1000;
+const PVP_LASER_GRACE_RADIUS = 1.15;
 const PICKUP_MAX_COUNT = 4;
 const PICKUP_RADIUS = 6;
 const PICKUP_LIFETIME_MS = 45_000;
@@ -750,7 +751,9 @@ function handleFire(room, player, message) {
       origin,
       direction,
       candidate.position,
-      PLAYER_CONFIG.radius + WEAPON_CONFIG.playerLaser.radius,
+      PLAYER_CONFIG.radius +
+        WEAPON_CONFIG.playerLaser.radius +
+        PVP_LASER_GRACE_RADIUS,
     );
     if (hitDistance < selectedDistance && hitDistance <= 560) {
       selected = candidate;

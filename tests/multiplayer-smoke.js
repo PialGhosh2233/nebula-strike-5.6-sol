@@ -114,7 +114,8 @@ await alpha.waitFor(
     message.type === 'event' &&
     message.event === 'playerHit' &&
     message.playerId === bravoWelcome.playerId &&
-    message.attackerId === alphaWelcome.playerId,
+    message.attackerId === alphaWelcome.playerId &&
+    message.amount === 26,
 );
 
 alpha.socket.send(JSON.stringify({

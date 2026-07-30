@@ -21,6 +21,7 @@ import {
   ENEMY_TYPES,
   PLAYER_CONFIG,
   QUALITY_PRESETS,
+  WEAPON_CONFIG,
 } from './config.js';
 import { safeGetStorage, safeSetStorage } from './utils/MathUtils.js';
 
@@ -36,6 +37,8 @@ const _networkPosition = new THREE.Vector3();
 const _networkDirection = new THREE.Vector3();
 const _radarOffset = new THREE.Vector3();
 const _radarQuaternion = new THREE.Quaternion();
+const _aimPoint = new THREE.Vector3();
+const _aimDirection = new THREE.Vector3();
 
 export class Game {
   constructor(canvas, context) {
@@ -488,6 +491,7 @@ export class Game {
     if (this.input.isDown('Space') && this.player.canFire()) {
       this.muzzleSide *= -1;
       this.player.getMuzzlePosition(this.muzzleSide, _muzzlePosition);
+      this.#applyPulseAimAssist(_muzzlePosition, _forward);
       this.projectileManager.spawnPlayer(
         _muzzlePosition,
         _forward,
@@ -526,6 +530,28 @@ export class Game {
         this.audio.playWarning();
       }
     }
+  }
+
+  #applyPulseAimAssist(origin, direction) {
+    const target = this.lockTarget;
+    if (!target?.alive || !target.group?.position) return;
+    const config = WEAPON_CONFIG.playerLaser;
+    _aimPoint.copy(target.group.position);
+    const distance = origin.distanceTo(_aimPoint);
+    const leadTime = Math.min(
+      config.maxLeadTime,
+      distance / Math.max(1, config.speed),
+    );
+    if (target.velocity?.isVector3) {
+      _aimPoint.addScaledVector(target.velocity, leadTime);
+    }
+    _aimDirection.copy(_aimPoint).sub(origin);
+    if (_aimDirection.lengthSq() < 0.001) return;
+    _aimDirection.normalize();
+    if (direction.dot(_aimDirection) < config.aimAssistDot) return;
+    direction
+      .lerp(_aimDirection, config.aimAssistStrength)
+      .normalize();
   }
 
   #updateTargetLock(deltaTime) {
