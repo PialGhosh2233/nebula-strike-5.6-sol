@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="Nebula Strike — a fast, cinematic 3D space combat game."
+    />
+    <meta name="theme-color" content="#030610" />
+    <title>Nebula Strike // Combat Flight</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#start-button">Skip to game controls</a>
+
+    <main id="game-root" class="game-root" data-game-state="menu">
+      <canvas
+        id="game-canvas"
+        aria-label="Nebula Strike 3D combat viewport"
+        tabindex="-1"
+      ></canvas>
+
+      <div class="screen-texture" aria-hidden="true"></div>
+      <div id="damage-vignette" class="damage-vignette" aria-hidden="true"></div>
+
+      <section id="hud" class="hud" aria-label="Flight instruments" aria-hidden="true">
+        <div class="hud-bracket hud-bracket--top-left" aria-hidden="true"></div>
+        <div class="hud-bracket hud-bracket--top-right" aria-hidden="true"></div>
+        <div class="hud-bracket hud-bracket--bottom-left" aria-hidden="true"></div>
+        <div class="hud-bracket hud-bracket--bottom-right" aria-hidden="true"></div>
+
+        <header class="hud-topbar">
+          <div class="hud-panel score-panel">
+            <div class="panel-corner" aria-hidden="true"></div>
+            <div class="score-primary">
+              <span class="hud-label">Combat score</span>
+              <strong id="score-value" class="score-value" aria-live="polite">000000</strong>
+            </div>
+            <div class="score-secondary">
+              <span class="hud-label">Personal best</span>
+              <span id="high-score-value" class="hud-stat-value">000000</span>
+            </div>
+          </div>
+
+          <div class="mission-id" aria-hidden="true">
+            <span>NS–77</span>
+            <i></i>
+            <span>VANGUARD</span>
+          </div>
+
+          <div class="hud-panel telemetry-panel">
+            <div class="telemetry-item">
+              <span class="hud-label">Wave</span>
+              <strong id="wave-value" class="hud-stat-value">01</strong>
+            </div>
+            <div class="telemetry-item telemetry-item--threat">
+              <span class="hud-label">Hostiles</span>
+              <strong id="enemy-count-value" class="hud-stat-value">00</strong>
+            </div>
+            <div class="telemetry-item">
+              <span class="hud-label">Eliminated</span>
+              <strong id="kill-count-value" class="hud-stat-value">00</strong>
+            </div>
+            <div class="telemetry-item">
+              <span class="hud-label">Mission time</span>
+              <strong id="timer-value" class="hud-stat-value">00:00</strong>
+            </div>
+          </div>
+        </header>
+
+        <section class="vitals hud-panel" aria-label="Ship integrity">
+          <div class="panel-heading">
+            <span>Fighter integrity</span>
+            <span class="panel-code">VX-09</span>
+          </div>
+
+          <div class="meter meter--health">
+            <div class="meter-header">
+              <span><i class="meter-icon meter-icon--health"></i>Hull</span>
+              <output id="health-value">100%</output>
+            </div>
+            <div
+              class="meter-track"
+              role="progressbar"
+              aria-label="Hull integrity"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="100"
+            >
+              <div id="health-fill" class="meter-fill"></div>
+            </div>
+          </div>
+
+          <div class="meter meter--shield">
+            <div class="meter-header">
+              <span><i class="meter-icon meter-icon--shield"></i>Shield</span>
+              <output id="shield-value">100%</output>
+            </div>
+            <div
+              class="meter-track"
+              role="progressbar"
+              aria-label="Shield charge"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="100"
+            >
+              <div id="shield-fill" class="meter-fill"></div>
+            </div>
+          </div>
+
+          <div class="meter meter--boost">
+            <div class="meter-header">
+              <span><i class="meter-icon meter-icon--boost"></i>Afterburner</span>
+              <output id="boost-value">100%</output>
+            </div>
+            <div
+              class="meter-track"
+              role="progressbar"
+              aria-label="Afterburner charge"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="100"
+            >
+              <div id="boost-fill" class="meter-fill"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="weapons hud-panel" aria-label="Weapon status">
+          <div class="panel-heading">
+            <span>Weapons online</span>
+            <span class="status-dot">Live</span>
+          </div>
+          <div class="weapon-row">
+            <div class="weapon-glyph weapon-glyph--laser" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </div>
+            <div class="weapon-copy">
+              <span class="hud-label">Primary</span>
+              <strong>Pulse cannons</strong>
+            </div>
+            <kbd>Space</kbd>
+          </div>
+          <div class="weapon-row">
+            <div class="weapon-glyph weapon-glyph--missile" aria-hidden="true">
+              <i></i>
+            </div>
+            <div class="weapon-copy">
+              <span class="hud-label">Seeker missiles</span>
+              <strong><span id="missile-count-value">06</span> remaining</strong>
+            </div>
+            <kbd>E</kbd>
+          </div>
+        </section>
+
+        <div id="crosshair" class="crosshair" aria-hidden="true">
+          <div class="crosshair-orbit crosshair-orbit--outer"></div>
+          <div class="crosshair-orbit crosshair-orbit--inner"></div>
+          <i class="crosshair-tick crosshair-tick--top"></i>
+          <i class="crosshair-tick crosshair-tick--right"></i>
+          <i class="crosshair-tick crosshair-tick--bottom"></i>
+          <i class="crosshair-tick crosshair-tick--left"></i>
+          <span class="crosshair-dot"></span>
+          <span id="missile-lock-status" class="lock-status">No target</span>
+        </div>
+
+        <div id="boss-bar" class="boss-bar" aria-hidden="true">
+          <div class="boss-heading">
+            <span class="boss-tag">Priority target</span>
+            <strong id="boss-name">Dreadnought</strong>
+            <output id="boss-health-value">100%</output>
+          </div>
+          <div
+            class="boss-track"
+            role="progressbar"
+            aria-label="Boss health"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="100"
+          >
+            <div id="boss-health-fill" class="boss-health-fill"></div>
+          </div>
+        </div>
+
+        <div class="flight-hint" aria-hidden="true">
+          <span class="flight-hint-line"></span>
+          <span id="flight-status">Combat systems nominal</span>
+          <span class="flight-hint-line"></span>
+        </div>
+      </section>
+
+      <div id="damage-indicator" class="damage-indicator" aria-hidden="true">
+        <span></span>
+      </div>
+
+      <div id="hit-marker" class="hit-marker" aria-hidden="true">
+        <i></i><i></i><i></i><i></i>
+      </div>
+
+      <div id="score-popups" class="score-popups" aria-live="polite"></div>
+
+      <section
+        id="wave-announcement"
+        class="wave-announcement"
+        aria-live="polite"
+        aria-hidden="true"
+      >
+        <span class="announcement-eyebrow">Incoming transmission</span>
+        <h2 id="wave-announcement-title">Wave 01</h2>
+        <p id="wave-announcement-subtitle">Hostile signatures detected</p>
+      </section>
+
+      <section
+        id="countdown-overlay"
+        class="countdown-overlay"
+        aria-live="assertive"
+        aria-hidden="true"
+      >
+        <span class="countdown-label">Launch sequence</span>
+        <strong id="countdown-value">3</strong>
+        <span class="countdown-rule"></span>
+      </section>
+
+      <section
+        id="main-menu"
+        class="ui-screen menu-screen is-active"
+        aria-labelledby="game-title"
+        aria-hidden="false"
+      >
+        <div class="menu-atmosphere" aria-hidden="true">
+          <div class="orbital-ring orbital-ring--one"></div>
+          <div class="orbital-ring orbital-ring--two"></div>
+        </div>
+
+        <div class="menu-layout">
+          <div class="menu-hero">
+            <div class="eyebrow"><i></i> Vanguard flight division</div>
+            <h1 id="game-title">
+              <span>Nebula</span>
+              <strong>Strike</strong>
+            </h1>
+            <p class="menu-tagline">Break the line. Own the stars.</p>
+            <p class="menu-intro">
+              Enter an escalating fleet war at the edge of charted space. Fly fast,
+              lock targets, and survive the void.
+            </p>
+
+            <button id="start-button" class="action-button action-button--primary" type="button">
+              <span class="button-index">01</span>
+              <span class="button-copy">
+                <small>Flight clearance granted</small>
+                <strong>Launch mission</strong>
+              </span>
+              <span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+
+            <div class="system-ready" aria-label="System status ready">
+              <span class="system-pulse"></span>
+              All combat systems ready
+            </div>
+          </div>
+
+          <aside class="briefing-panel">
+            <div class="briefing-header">
+              <span>Flight controls</span>
+              <span class="briefing-code">BRF // 047</span>
+            </div>
+            <div class="control-grid">
+              <div class="control-item control-item--wide">
+                <div class="key-cluster" aria-hidden="true">
+                  <kbd>W</kbd>
+                  <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>
+                </div>
+                <div><strong>Flight vector</strong><small>Pitch and steer</small></div>
+              </div>
+              <div class="control-item">
+                <kbd>Space</kbd>
+                <div><strong>Fire</strong><small>Pulse cannons</small></div>
+              </div>
+              <div class="control-item">
+                <kbd>E</kbd>
+                <div><strong>Missile</strong><small>Locked targets</small></div>
+              </div>
+              <div class="control-item">
+                <kbd>Shift</kbd>
+                <div><strong>Boost</strong><small>Afterburner</small></div>
+              </div>
+              <div class="control-item">
+                <kbd>Q</kbd>
+                <div><strong>Evade</strong><small>Combat roll</small></div>
+              </div>
+              <div class="control-item">
+                <kbd>Esc</kbd>
+                <div><strong>Pause</strong><small>Flight menu</small></div>
+              </div>
+              <div class="control-item">
+                <div class="mouse-icon" aria-hidden="true"><i></i></div>
+                <div><strong>Aim</strong><small>Mouse / pointer</small></div>
+              </div>
+            </div>
+            <p class="briefing-note">
+              Tip: keep moving. Shields recharge only after you avoid damage.
+            </p>
+          </aside>
+        </div>
+
+        <footer class="menu-footer">
+          <span>Operation Nightglass</span>
+          <span>WebGL2 combat simulation</span>
+          <span>Build 07.30</span>
+        </footer>
+      </section>
+
+      <section
+        id="pause-screen"
+        class="ui-screen pause-screen"
+        aria-labelledby="pause-title"
+        aria-hidden="true"
+      >
+        <div class="modal-card pause-card">
+          <span class="modal-kicker">Simulation suspended</span>
+          <h2 id="pause-title">Mission paused</h2>
+          <p>Your fighter is holding position. Resume when ready.</p>
+          <div class="modal-actions">
+            <button
+              id="pause-resume-button"
+              class="action-button action-button--primary action-button--compact"
+              type="button"
+            >
+              <span class="button-copy"><strong>Resume flight</strong><small>Return to combat</small></span>
+              <span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+            <button
+              id="pause-restart-button"
+              class="action-button action-button--ghost action-button--compact"
+              type="button"
+            >
+              Restart mission
+            </button>
+          </div>
+          <span class="escape-hint"><kbd>Esc</kbd> to resume</span>
+        </div>
+      </section>
+
+      <section
+        id="game-over-screen"
+        class="ui-screen game-over-screen"
+        aria-labelledby="game-over-title"
+        aria-hidden="true"
+      >
+        <div class="modal-card debrief-card">
+          <span class="modal-kicker modal-kicker--danger">Signal lost</span>
+          <h2 id="game-over-title">Fighter destroyed</h2>
+          <p class="debrief-copy">Your run is over, pilot. The fleet still needs you.</p>
+
+          <div class="debrief-score">
+            <span>Final score</span>
+            <strong id="game-over-score">000000</strong>
+            <small id="game-over-record">High score · 000000</small>
+          </div>
+
+          <div class="debrief-grid">
+            <div><span>Wave reached</span><strong id="game-over-wave">01</strong></div>
+            <div><span>Hostiles down</span><strong id="game-over-kills">00</strong></div>
+            <div><span>Flight time</span><strong id="game-over-time">00:00</strong></div>
+          </div>
+
+          <button id="restart-button" class="action-button action-button--primary" type="button">
+            <span class="button-index">↻</span>
+            <span class="button-copy"><small>Re-enter the fight</small><strong>Launch again</strong></span>
+            <span class="button-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="webgl-error"
+        class="ui-screen webgl-error"
+        aria-labelledby="webgl-error-title"
+        aria-hidden="true"
+      >
+        <div class="modal-card error-card">
+          <span class="error-icon" aria-hidden="true">!</span>
+          <span class="modal-kicker modal-kicker--danger">Compatibility alert</span>
+          <h2 id="webgl-error-title">WebGL2 unavailable</h2>
+          <p id="webgl-error-message">
+            Nebula Strike needs WebGL2 hardware acceleration. Update your browser and
+            graphics drivers, then reload this page.
+          </p>
+          <div class="error-details">
+            Try Chrome, Firefox, Edge, or Safari on a modern desktop GPU.
+          </div>
+        </div>
+      </section>
+
+      <aside id="settings-panel" class="settings-panel" aria-label="Game settings">
+        <button
+          id="mute-button"
+          class="icon-button"
+          type="button"
+          aria-label="Mute audio"
+          aria-pressed="false"
+        >
+          <svg class="sound-on-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9v6h4l5 4V5L8 9H4Zm12.5 3a4.5 4.5 0 0 0-2-3.74v7.48a4.5 4.5 0 0 0 2-3.74Zm-2-8.7v2.06a7.5 7.5 0 0 1 0 13.28v2.06a9.5 9.5 0 0 0 0-17.4Z" />
+          </svg>
+          <svg class="sound-off-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9v6h4l5 4V5L8 9H4Zm12.4 3 2.3-2.3-1.4-1.4-2.3 2.3-2.3-2.3-1.4 1.4 2.3 2.3-2.3 2.3 1.4 1.4 2.3-2.3 2.3 2.3 1.4-1.4-2.3-2.3Z" />
+          </svg>
+        </button>
+        <label class="volume-control" for="volume-slider">
+          <span class="visually-hidden">Master volume</span>
+          <input
+            id="volume-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value="0.7"
+            aria-label="Master volume"
+          />
+          <output id="volume-value" for="volume-slider">70%</output>
+        </label>
+        <label class="quality-control" for="quality-select">
+          <span>Quality</span>
+          <select id="quality-select" aria-label="Graphics quality">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
+          </select>
+        </label>
+        <button id="pointer-lock-button" class="pointer-button" type="button">
+          <span class="pointer-dot" aria-hidden="true"></span>
+          Mouse aim
+        </button>
+      </aside>
+    </main>
+
+    <noscript>
+      <div class="noscript-message">
+        Nebula Strike requires JavaScript. Enable it in your browser and reload.
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
